@@ -68,7 +68,7 @@ module fox_game::token_helper {
 
     // ======= Types =======
 
-    struct FoxChicken has drop {
+    struct Traits has drop {
         is_chicken: bool,
         fur: u8,
         head: u8,
@@ -181,7 +181,6 @@ module fox_game::token_helper {
         created_by: address
     }
 
-
     // ======== Functions =========
 
     /// Create a shared CapyRegistry and give its creator the capability
@@ -225,7 +224,9 @@ module fox_game::token_helper {
         url::new_unsafe_from_bytes(capy_url)
     }
 
-    // ======= Admin Functions =======
+    public fun alpha_for_fox(): u8 {
+        7
+    }
 
     /// Create a Capy with a specified gene sequence.
     /// Also allows assigning custom attributes if an App is authorized to do it.
@@ -259,20 +260,10 @@ module fox_game::token_helper {
         }
     }
 
-    /// Creates an attribute with the given name and a value. Should only be used for
-    /// events. Is currently a friend-only feature but will be put behind a capability
-    /// authorization later.
-    public(friend) fun create_attribute(name: vector<u8>, value: vector<u8>): Attribute {
-        Attribute {
-            name: string::utf8(name),
-            value: string::utf8(value)
-        }
-    }
-
     // ======= Private and Utility functions =======
 
     /// Get Capy attributes from the gene sequence.
-    fun get_attributes(fc: &FoxChicken): vector<Attribute> {
+    fun get_attributes(fc: &Traits): vector<Attribute> {
         let attributes = vec::empty();
         vec::push_back(
             &mut attributes,
@@ -299,11 +290,11 @@ module fox_game::token_helper {
     public fun generate_traits(
         reg: &FoCRegistry,
         // seed: &vector<u8>
-    ): FoxChicken {
+    ): Traits {
         let seed = reg.foc_hash;
         let is_chicken = *vec::borrow(&seed, 0) >= 26; // 90%
         let shift = if (is_chicken) 0 else 9;
-        FoxChicken {
+        Traits {
             is_chicken,
             fur: select_trait(reg, (*vec::borrow(&seed, 1) as u64), 0 + shift),
             head: select_trait(reg, (*vec::borrow(&seed, 2) as u64), 1 + shift),
