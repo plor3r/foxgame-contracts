@@ -13,6 +13,7 @@ module fox_game::token_helper {
     use fox_game::utf8_utils::{to_string, to_vector};
 
     friend fox_game::fox;
+    friend fox_game::barn;
 
     /// Base path for `FoxOrChicken.url` attribute. Is temporary and improves
     /// explorer / wallet display. Always points to the dev/testnet server.
@@ -185,7 +186,7 @@ module fox_game::token_helper {
 
     /// Create a shared CapyRegistry and give its creator the capability
     /// to manage the game.
-    fun init(ctx: &mut TxContext) {
+    public(friend) fun initialize(ctx: &mut TxContext) {
         let id = object::new(ctx);
         let foc_hash = hash(object::uid_to_bytes(&id));
 
@@ -218,7 +219,7 @@ module fox_game::token_helper {
     }
 
     /// Construct a Url to the capy.art.
-    fun link_url(c: u64, is_chicken: bool): Url {
+    fun link_url(c: u64, _is_chicken: bool): Url {
         let capy_url = *&MAIN_URL;
         vec::append(&mut capy_url, to_vector(c));
         url::new_unsafe_from_bytes(capy_url)

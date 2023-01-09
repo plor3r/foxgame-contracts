@@ -8,6 +8,10 @@ module fox_game::barn {
     use std::vector as vec;
 
     use fox_game::token_helper::{Self, FoxOrChicken};
+    #[test_only]
+    use fox_game::token_helper::FoCRegistry;
+
+    friend fox_game::fox;
 
     /// For when someone tries to unstake without ownership.
     const ENotOwner: u64 = 0;
@@ -57,7 +61,7 @@ module fox_game::barn {
 
     /// Create a shared CapyRegistry and give its creator the capability
     /// to manage the game.
-    fun init(ctx: &mut TxContext) {
+    public(friend) fun initialize(ctx: &mut TxContext) {
         let id = object::new(ctx);
         transfer::share_object(BarnRegistry {
             id,
@@ -115,22 +119,20 @@ module fox_game::barn {
         assert!(table::contains(&barn.stake, foc_id), ENOT_IN_PACK_OR_BARN);
         let stake_id = table::remove(&mut barn.stake, foc_id);
         let Stake { id, item, value: _, owner } = object_table::remove(&mut barn.items, stake_id);
-
         assert!(tx_context::sender(ctx) == owner, ENotOwner);
-
         object::delete(id);
         item
     }
 
-    fun add_fox_to_pack(pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
-        let item_id = object::id(&item);
+    fun add_fox_to_pack(pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext) {
+        let foc_id = object::id(&foc);
         let stake = Stake {
             id: object::new(ctx),
-            item,
+            item: foc,
             value: 0,
             owner: sender(ctx),
         };
-        let stake_id = object::id(&stake);
+        // let stake_id = object::id(&stake);
         let alpha = token_helper::alpha_for_fox();
         if (!table::contains(&mut pack.items, alpha)) {
             table::add(&mut pack.items, alpha, vec::empty());
@@ -140,32 +142,68 @@ module fox_game::barn {
 
         // Store the location of the wolf in the Pack
         let token_index = vec::length(pack_items) - 1;
-        table::add(&mut pack.pack_indices, item_id, token_index);
-        table::add(&mut pack.stake, item_id, stake_id);
+        table::add(&mut pack.pack_indices, foc_id, token_index);
+        // table::add(&mut pack.stake, foc_id, stake_id);
     }
 
     fun remove_fox_from_pack(pack: &mut Pack, foc_id: ID, ctx: &mut TxContext): FoxOrChicken {
-        assert!(table::contains(&pack.stake, foc_id), ENOT_IN_PACK_OR_BARN);
-        let stake_id = table::remove(&mut pack.stake, foc_id);
-        // TODO get alpha from stake_id
+        // assert!(table::contains(&pack.stake, foc_id), ENOT_IN_PACK_OR_BARN);
+        // table::remove(&mut pack.stake, foc_id);
+        // TODO get alpha from foc_id
         let alpha = token_helper::alpha_for_fox();
         assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
-        let stake_vector = table::borrow_mut(&mut pack.items, alpha);
-        assert!(table::contains(&pack.pack_indices, stake_id), ENOT_IN_PACK_OR_BARN);
+        let pack_items = table::borrow_mut(&mut pack.items, alpha);
         // get the index
-        let stake_index = *table::borrow(&pack.pack_indices, stake_id);
-        let last_stake_index = vec::length(stake_vector) - 1;
-        let last_stake = vec::borrow(stake_vector, last_stake_index);
-        // update index for swapped token
-        table::remove(&mut pack.pack_indices, object::id(last_stake));
-        table::add(&mut pack.pack_indices, object::id(last_stake), stake_index);
-        // swap last token to current token location and then pop
-        vec::swap(stake_vector, stake_index, last_stake_index);
+        assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
+        let stake_index = table::remove(&mut pack.pack_indices, foc_id);
 
-        table::remove(&mut pack.pack_indices, stake_id);
-        let Stake { id, item, value: _, owner } = vec::pop_back(stake_vector);
+        let last_stake_index = vec::length(pack_items) - 1;
+        if (stake_index != last_stake_index) {
+            let last_stake = vec::borrow(pack_items, last_stake_index);
+            // update index for swapped token
+            let last_stake_id = object::id(last_stake);
+            table::remove(&mut pack.pack_indices, last_stake_id);
+            table::add(&mut pack.pack_indices, last_stake_id, stake_index);
+            // swap last token to current token location and then pop
+            vec::swap(pack_items, stake_index, last_stake_index);
+        };
+
+        let Stake { id, item, value: _, owner } = vec::pop_back(pack_items);
         assert!(tx_context::sender(ctx) == owner, ENotOwner);
         object::delete(id);
         item
+    }
+
+    #[test]
+    fun test_remove_fox_from_pack() {
+        use sui::test_scenario;
+
+        let dummy = @0xcafe;
+        let admin = @0xBABE;
+
+        let scenario_val = test_scenario::begin(admin);
+        let scenario = &mut scenario_val;
+        {
+            initialize(test_scenario::ctx(scenario));
+            token_helper::initialize(test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, dummy);
+        {
+            let foc_registry = test_scenario::take_shared<FoCRegistry>(scenario);
+            let item = token_helper::create_foc(&mut foc_registry, test_scenario::ctx(scenario));
+            let item_id = object::id(&item);
+            let pack = test_scenario::take_shared<Pack>(scenario);
+            add_fox_to_pack(&mut pack, item, test_scenario::ctx(scenario));
+
+            assert!(table::contains(&pack.pack_indices, item_id), 1);
+
+            let item_out = remove_fox_from_pack(&mut pack, item_id, test_scenario::ctx(scenario));
+            assert!(!table::contains(&pack.pack_indices, item_id), 1);
+
+            transfer::transfer(item_out, dummy);
+            test_scenario::return_shared(foc_registry);
+            test_scenario::return_shared(pack);
+        };
+        test_scenario::end(scenario_val);
     }
 }
