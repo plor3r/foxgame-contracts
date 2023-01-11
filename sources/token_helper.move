@@ -3,7 +3,6 @@ module fox_game::token_helper {
     use sui::object::{Self, UID, ID};
     use sui::url::{Self, Url};
     use sui::event::emit;
-    use sui::transfer;
     // use sui::dynamic_object_field as dof;
 
     use std::vector as vec;
@@ -45,27 +44,13 @@ module fox_game::token_helper {
 
     /// Every capybara is registered here. Acts as a source of randomness
     /// as well as the storage for the main information about the gamestate.
-    struct FoCRegistry has key {
+    struct FoCRegistry has key, store {
         id: UID,
         foc_born: u64,
         foc_hash: vector<u8>,
         rarities: vector<vector<u8>>,
         aliases: vector<vector<u8>>,
     }
-
-    const TRIAT_TYPE: vector<vector<u8>> = vector[
-        b"Fur",
-        b"Head",
-        b"Ears",
-        b"Eyes",
-        b"Nose",
-        b"Mouth",
-        b"Neck",
-        b"Feet",
-        b"Alpha",
-        b"IsChicken",
-    ];
-    const ALPHA: vector<u8> = vector[8, 7, 6, 5];
 
     // ======= Types =======
 
@@ -82,7 +67,7 @@ module fox_game::token_helper {
         alpha_index: u8,
     }
 
-    public fun generate(): (vector<vector<u8>>, vector<vector<u8>>) {
+    fun generate(): (vector<vector<u8>>, vector<vector<u8>>) {
         let rarities: vector<vector<u8>> = vec::empty();
         let aliases: vector<vector<u8>> = vec::empty();
         // I know this looks weird but it saves users gas by making lookup O(1)
@@ -184,24 +169,22 @@ module fox_game::token_helper {
 
     // ======== Functions =========
 
-    /// Create a shared CapyRegistry and give its creator the capability
-    /// to manage the game.
-    public(friend) fun initialize(ctx: &mut TxContext) {
+    public(friend) fun init_foc_manage_cap(ctx: &mut TxContext): FoCManagerCap {
+        FoCManagerCap { id: object::new(ctx) }
+    }
+
+    public fun init_foc_registry(ctx: &mut TxContext): FoCRegistry {
         let id = object::new(ctx);
         let foc_hash = hash(object::uid_to_bytes(&id));
-
-        emit(RegistryCreated { id: object::uid_to_inner(&id) });
-
-        transfer::transfer(FoCManagerCap { id: object::new(ctx) }, tx_context::sender(ctx));
-
         let (rarities, aliases) = generate();
-        transfer::share_object(FoCRegistry {
+        emit(RegistryCreated { id: object::uid_to_inner(&id) });
+        FoCRegistry {
             id,
             foc_hash,
             foc_born: 0,
             rarities,
             aliases,
-        })
+        }
     }
 
     /// Construct an image URL for the capy.

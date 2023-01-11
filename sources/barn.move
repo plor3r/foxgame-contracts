@@ -21,7 +21,7 @@ module fox_game::barn {
     const EALPHA_NOT_STAKED: u64 = 1;
     const ENOT_IN_PACK_OR_BARN: u64 = 2;
 
-    struct BarnRegistry has key {
+    struct BarnRegistry has key, store {
         id: UID,
         // amount of $WOOL earned so far
         total_egg_earned: u64,
@@ -45,13 +45,13 @@ module fox_game::barn {
         owner: address,
     }
 
-    struct Barn has key {
+    struct Barn has key, store {
         id: UID,
         stake: Table<ID, ID>,
         items: ObjectTable<ID, Stake>
     }
 
-    struct Pack has key {
+    struct Pack has key, store {
         id: UID,
         items: Table<u8, vector<Stake>>,
         pack_indices: Table<ID, u64>,
@@ -61,34 +61,35 @@ module fox_game::barn {
         id: UID
     }
 
-    /// Create a shared CapyRegistry and give its creator the capability
-    /// to manage the game.
-    public(friend) fun initialize(ctx: &mut TxContext) {
-        let id = object::new(ctx);
-        transfer::share_object(BarnRegistry {
-            id,
+    public fun init_barn_registry(ctx: &mut TxContext): BarnRegistry {
+        BarnRegistry {
+            id: object::new(ctx),
             total_egg_earned: 0,
             total_chicken_staked: 0,
             last_claim_timestamp: 0,
             total_alpha_staked: 0,
             unaccounted_rewards: 0,
             egg_per_alpha: 0,
-        });
-        transfer::share_object(Barn {
+        }
+    }
+
+    public fun init_pack(ctx: &mut TxContext): Pack {
+        Pack {
+            id: object::new(ctx),
+            items: table::new(ctx),
+            pack_indices: table::new(ctx)
+        }
+    }
+
+    public fun init_barn(ctx: &mut TxContext): Barn {
+        Barn {
             id: object::new(ctx),
             stake: table::new(ctx),
             items: object_table::new(ctx)
-        });
-        transfer::share_object(
-            Pack {
-                id: object::new(ctx),
-                items: table::new(ctx),
-                pack_indices: table::new(ctx)
-            }
-        );
+        }
     }
 
-    public entry fun add_many_to_barn_and_pack(
+    public fun add_many_to_barn_and_pack(
         barn: &mut Barn,
         pack: &mut Pack,
         tokens: vector<FoxOrChicken>,
@@ -107,7 +108,7 @@ module fox_game::barn {
         vec::destroy_empty(tokens)
     }
 
-    public entry fun claim_many_to_barn_and_pack(
+    public fun claim_many_to_barn_and_pack(
         barn: &mut Barn,
         pack: &mut Pack,
         tokens: vector<ID>,
@@ -130,19 +131,19 @@ module fox_game::barn {
         vec::destroy_empty(tokens)
     }
 
-    public entry fun add_to_barn(barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
+    fun add_to_barn(barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
         add_chicken_to_barn(barn, item, ctx);
     }
 
-    public entry fun claim_from_barn(barn: &mut Barn, foc_id: ID, ctx: &mut TxContext) {
+    fun claim_from_barn(barn: &mut Barn, foc_id: ID, ctx: &mut TxContext) {
         transfer::transfer(remove_chicken_from_barn(barn, foc_id, ctx), sender(ctx));
     }
 
-    public entry fun add_to_pack(pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
+    fun add_to_pack(pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
         add_fox_to_pack(pack, item, ctx);
     }
 
-    public entry fun claim_from_pack(pack: &mut Pack, foc_id: ID, ctx: &mut TxContext) {
+    fun claim_from_pack(pack: &mut Pack, foc_id: ID, ctx: &mut TxContext) {
         transfer::transfer(remove_fox_from_pack(pack, foc_id, ctx), sender(ctx));
     }
 
@@ -248,8 +249,8 @@ module fox_game::barn {
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         {
-            initialize(test_scenario::ctx(scenario));
-            token_helper::initialize(test_scenario::ctx(scenario));
+            transfer::share_object(token_helper::init_foc_registry(test_scenario::ctx(scenario)));
+            transfer::share_object(init_pack(test_scenario::ctx(scenario)));
         };
         test_scenario::next_tx(scenario, dummy);
         {

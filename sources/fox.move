@@ -1,17 +1,18 @@
 module fox_game::fox {
     use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
+    use sui::coin::{Self, Coin, TreasuryCap};
     use sui::object::{Self, ID, UID};
-    use sui::balance::{Self, Balance};
+    use sui::balance::Balance;
     use sui::tx_context::{TxContext, sender};
-    use sui::transfer::transfer;
+    use sui::transfer::{transfer, share_object};
     use std::vector as vec;
     use sui::pay;
     use std::hash::sha3_256 as hash;
 
     use fox_game::config;
     use fox_game::token_helper::{Self, FoCRegistry, FoxOrChicken};
-    use fox_game::barn::{Self, Pack, Barn};
+    use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
+    use fox_game::egg::{Self, EGG};
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -30,9 +31,23 @@ module fox_game::fox {
     /// Every parcel must go through here!
     struct CapyPost has key { id: UID, balance: Balance<SUI> }
 
+    struct Global has key {
+        id: UID,
+        pack: Pack,
+        barn: Barn,
+        barn_registry: BarnRegistry,
+        foc_registry: FoCRegistry,
+    }
+
     fun init(ctx: &mut TxContext) {
-        token_helper::initialize(ctx);
-        barn::initialize(ctx);
+        transfer(token_helper::init_foc_manage_cap(ctx), sender(ctx));
+        share_object(Global {
+            id: object::new(ctx),
+            barn_registry: barn::init_barn_registry(ctx),
+            pack: barn::init_pack(ctx),
+            barn: barn::init_barn(ctx),
+            foc_registry: token_helper::init_foc_registry(ctx),
+        })
     }
 
     public fun mint_cost(token_index: u64): u64 {
@@ -47,17 +62,16 @@ module fox_game::fox {
     }
 
     /// mint a fox or chicken
-    entry fun mint(
-        reg: &mut FoCRegistry,
-        pack: &mut Pack,
-        barn: &mut Barn,
+    public entry fun mint(
+        global: &mut Global,
+        treasury_cap: &mut TreasuryCap<EGG>,
         amount: u64,
         stake: bool,
         ctx: &mut TxContext,
     ) {
         assert!(config::is_enabled(), ENOT_ENABLED);
         assert!(amount > 0 && amount <= config::max_single_mint(), EINVALID_MINTING);
-        let token_supply = token_helper::total_supply(reg);
+        let token_supply = token_helper::total_supply(&global.foc_registry);
         assert!(token_supply + amount <= config::target_max_tokens(), EALL_MINTED);
 
         let receiver_addr = sender(ctx);
@@ -76,8 +90,8 @@ module fox_game::fox {
         let i = 0;
         while (i < amount) {
             let token_index = token_supply + i + 1;
-            let recipient: address = select_recipient(pack, receiver_addr, seed, token_index);
-            let token = token_helper::create_foc(reg, ctx);
+            let recipient: address = select_recipient(&mut global.pack, receiver_addr, seed, token_index);
+            let token = token_helper::create_foc(&mut global.foc_registry, ctx);
             if (!stake || recipient != receiver_addr) {
                 transfer(token, receiver_addr);
             } else {
@@ -93,14 +107,31 @@ module fox_game::fox {
             // assert!(coin::balance<wool::Wool>(receiver_addr) >= total_wool_cost, error::invalid_state(EINSUFFICIENT_WOOL_BALANCE));
             // wool::burn(receiver, total_wool_cost);
             // wool::transfer(receiver, @woolf_deployer, total_wool_cost);
+            egg::mint(treasury_cap, total_egg_cost, receiver_addr, ctx);
         };
 
         if (stake) {
-            barn::add_many_to_barn_and_pack(barn, pack, tokens, ctx);
+            barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
         } else {
             vec::destroy_empty(tokens);
         };
         object::delete(id);
+    }
+
+    public entry fun add_many_to_barn_and_pack(
+        global: &mut Global,
+        tokens: vector<FoxOrChicken>,
+        ctx: &mut TxContext,
+    ) {
+        barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+    }
+
+    public fun claim_many_to_barn_and_pack(
+        global: &mut Global,
+        tokens: vector<ID>,
+        ctx: &mut TxContext,
+    ) {
+        barn::claim_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
     }
 
     /// Merges a vector of Coin then splits the `amount` from it, returns the

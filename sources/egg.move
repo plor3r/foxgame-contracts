@@ -2,7 +2,7 @@ module fox_game::egg {
     use std::option;
     use sui::coin::{Self, Coin, TreasuryCap};
     use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use sui::tx_context::TxContext;
 
     friend fox_game::fox;
 
