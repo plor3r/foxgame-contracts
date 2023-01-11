@@ -126,7 +126,7 @@ module fox_game::fox {
         barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
     }
 
-    public fun claim_many_to_barn_and_pack(
+    public entry fun claim_many_to_barn_and_pack(
         global: &mut Global,
         tokens: vector<ID>,
         ctx: &mut TxContext,
