@@ -11,4 +11,19 @@ module fox_game::config {
     public fun octas(): u64 {
         100000000
     }
+
+    public fun max_single_mint(): u64 {
+        10
+    }
+    public fun target_max_tokens(): u64 {
+        50000
+    }
+
+    public fun mint_price(): u64 {
+        1 * octas()
+    }
+
+    public fun is_enabled(): bool {
+        true
+    }
 }

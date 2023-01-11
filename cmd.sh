@@ -4,9 +4,9 @@ set -x
 sui move build
 sui client publish . --gas-budget 30000
 
-export fox_game=0x772bc0ca8fbe506cbbc05a1750cd221f580bc8a9
-export foc_registry=0x7b56ac3bc0d6968003ac45ed056d31f98be86879
-sui client call --function mint --module fox --package ${fox_game} --args ${foc_registry} --gas-budget 100000
+export fox_game=0x889f8dce3c6eaa80e528bdd4c3c1b4552595b7cb
+export foc_registry=0xe711e606e294387fb47626b4bd2b8750d2fea274
+sui client call --function mint --module fox --package ${fox_game} --args ${foc_registry} \"2\" false --gas-budget 100000
 
 export item=0x54515bbd3ec302fdc9e16f7357e7001ecb26ea6e
 

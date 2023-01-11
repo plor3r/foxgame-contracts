@@ -8,10 +8,13 @@ module fox_game::barn {
     use std::vector as vec;
 
     use fox_game::token_helper::{Self, FoxOrChicken};
+    use fox_game::random;
     #[test_only]
     use fox_game::token_helper::FoCRegistry;
 
     friend fox_game::fox;
+
+    const MAX_ALPHA: u8 = 8;
 
     /// For when someone tries to unstake without ownership.
     const ENotOwner: u64 = 0;
@@ -50,7 +53,6 @@ module fox_game::barn {
 
     struct Pack has key {
         id: UID,
-        stake: Table<ID, ID>,
         items: Table<u8, vector<Stake>>,
         pack_indices: Table<ID, u64>,
     }
@@ -80,11 +82,52 @@ module fox_game::barn {
         transfer::share_object(
             Pack {
                 id: object::new(ctx),
-                stake: table::new(ctx),
                 items: table::new(ctx),
                 pack_indices: table::new(ctx)
             }
         );
+    }
+
+    public entry fun add_many_to_barn_and_pack(
+        barn: &mut Barn,
+        pack: &mut Pack,
+        tokens: vector<FoxOrChicken>,
+        ctx: &mut TxContext,
+    ) {
+        let i = vec::length<FoxOrChicken>(&tokens);
+        while (i > 0) {
+            let token = vec::pop_back(&mut tokens);
+            if (token_helper::is_chicken(object::id(&token))) {
+                add_chicken_to_barn(barn, token, ctx);
+            } else {
+                add_fox_to_pack(pack, token, ctx);
+            };
+            i = i - 1;
+        };
+        vec::destroy_empty(tokens)
+    }
+
+    public entry fun claim_many_to_barn_and_pack(
+        barn: &mut Barn,
+        pack: &mut Pack,
+        tokens: vector<ID>,
+        ctx: &mut TxContext,
+    ) {
+        let i = vec::length<ID>(&tokens);
+        // FIXME: with owed
+        let owed: u64 = 0;
+        while (i > 0) {
+            let token_id = vec::pop_back(&mut tokens);
+
+            if (token_helper::is_chicken(token_id)) {
+                claim_from_barn(barn, token_id, ctx);
+            } else {
+                claim_from_pack(pack, token_id, ctx);
+            };
+            i = i - 1;
+        };
+        if (owed == 0) { return };
+        vec::destroy_empty(tokens)
     }
 
     public entry fun add_to_barn(barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
@@ -132,7 +175,6 @@ module fox_game::barn {
             value: 0,
             owner: sender(ctx),
         };
-        // let stake_id = object::id(&stake);
         let alpha = token_helper::alpha_for_fox();
         if (!table::contains(&mut pack.items, alpha)) {
             table::add(&mut pack.items, alpha, vec::empty());
@@ -143,12 +185,9 @@ module fox_game::barn {
         // Store the location of the wolf in the Pack
         let token_index = vec::length(pack_items) - 1;
         table::add(&mut pack.pack_indices, foc_id, token_index);
-        // table::add(&mut pack.stake, foc_id, stake_id);
     }
 
     fun remove_fox_from_pack(pack: &mut Pack, foc_id: ID, ctx: &mut TxContext): FoxOrChicken {
-        // assert!(table::contains(&pack.stake, foc_id), ENOT_IN_PACK_OR_BARN);
-        // table::remove(&mut pack.stake, foc_id);
         // TODO get alpha from foc_id
         let alpha = token_helper::alpha_for_fox();
         assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
@@ -172,6 +211,31 @@ module fox_game::barn {
         assert!(tx_context::sender(ctx) == owner, ENotOwner);
         object::delete(id);
         item
+    }
+
+    // chooses a random Wolf thief when a newly minted token is stolen
+    public fun random_wolf_owner(pack: &mut Pack, seed: vector<u8>): address {
+        let total_alpha_staked = 10;
+        if (total_alpha_staked == 0) {
+            return @0x0
+        };
+        let bucket = random::rand_u64_range_with_seed(seed, 0, total_alpha_staked);
+        let cumulative: u64 = 0;
+        // loop through each bucket of Wolves with the same alpha score
+        let i = MAX_ALPHA - 3;
+        // let wolves: &vector<Stake> = &vector::empty();
+        while (i <= MAX_ALPHA) {
+            let wolves = table::borrow(&pack.items, i);
+            let wolves_length = vec::length(wolves);
+            cumulative = cumulative + wolves_length * (i as u64);
+            // if the value is not inside of that bucket, keep going
+            if (bucket < cumulative) {
+                // get the address of a random Wolf with that alpha score
+                return vec::borrow(wolves, random::rand_u64_with_seed(seed) % wolves_length).owner
+            };
+            i = i + 1;
+        };
+        @0x0
     }
 
     #[test]

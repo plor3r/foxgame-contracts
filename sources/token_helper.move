@@ -229,6 +229,14 @@ module fox_game::token_helper {
         7
     }
 
+    public fun total_supply(reg: &FoCRegistry): u64 {
+        reg.foc_born
+    }
+
+    public fun is_chicken(_item_id: ID): bool {
+        false
+    }
+
     /// Create a Capy with a specified gene sequence.
     /// Also allows assigning custom attributes if an App is authorized to do it.
     public(friend) fun create_foc(
