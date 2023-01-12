@@ -13,6 +13,7 @@ module fox_game::fox {
     use fox_game::token_helper::{Self, FoCRegistry, FoxOrChicken};
     use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
     use fox_game::egg::{Self, EGG};
+    use std::vector;
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -126,12 +127,35 @@ module fox_game::fox {
         barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
     }
 
-    public entry fun claim_many_to_barn_and_pack(
+    // public entry fun claim_many_from_barn_and_pack(
+    //     global: &mut Global,
+    //     tokens: vector<address>,
+    //     ctx: &mut TxContext,
+    // ) {
+    //     let i = vector::length(&tokens);
+    //     let token_ids = vector::empty<ID>();
+    //     while (i > 0) {
+    //         vector::push_back(&mut token_ids, object::id_from_address(vector::pop_back(&mut tokens)));
+    //         i = i - 1;
+    //     };
+    //     barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, token_ids, ctx);
+    // }
+
+    public entry fun claim_many_from_barn_and_pack(
         global: &mut Global,
         tokens: vector<ID>,
         ctx: &mut TxContext,
     ) {
-        barn::claim_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+        barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+    }
+
+    public entry fun claim_one_from_barn_and_pack(
+        global: &mut Global,
+        token: ID,
+        ctx: &mut TxContext,
+    ) {
+        let token_id = vector::singleton<ID>(token);
+        barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, token_id, ctx);
     }
 
     /// Merges a vector of Coin then splits the `amount` from it, returns the

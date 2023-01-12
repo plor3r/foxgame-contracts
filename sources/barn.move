@@ -108,7 +108,7 @@ module fox_game::barn {
         vec::destroy_empty(tokens)
     }
 
-    public fun claim_many_to_barn_and_pack(
+    public fun claim_many_from_barn_and_pack(
         barn: &mut Barn,
         pack: &mut Pack,
         tokens: vector<ID>,
