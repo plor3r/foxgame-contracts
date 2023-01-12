@@ -2,7 +2,6 @@ module fox_game::fox {
     use sui::sui::SUI;
     use sui::coin::{Self, Coin, TreasuryCap};
     use sui::object::{Self, ID, UID};
-    use sui::balance::Balance;
     use sui::tx_context::{TxContext, sender};
     use sui::transfer::{transfer, share_object};
     use std::vector as vec;
@@ -28,9 +27,6 @@ module fox_game::fox {
     /// INSUFFICIENT BALANCE
     const EINSUFFICIENT_SUI_BALANCE: u64 = 6;
     const EINSUFFICIENT_WOOL_BALANCE: u64 = 7;
-
-    /// Every parcel must go through here!
-    struct CapyPost has key { id: UID, balance: Balance<SUI> }
 
     struct Global has key {
         id: UID,
@@ -112,7 +108,7 @@ module fox_game::fox {
         };
 
         if (stake) {
-            barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+            barn::add_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
         } else {
             vec::destroy_empty(tokens);
         };
@@ -124,38 +120,40 @@ module fox_game::fox {
         tokens: vector<FoxOrChicken>,
         ctx: &mut TxContext,
     ) {
-        barn::add_many_to_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+        barn::add_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
     }
-
-    // public entry fun claim_many_from_barn_and_pack(
-    //     global: &mut Global,
-    //     tokens: vector<address>,
-    //     ctx: &mut TxContext,
-    // ) {
-    //     let i = vector::length(&tokens);
-    //     let token_ids = vector::empty<ID>();
-    //     while (i > 0) {
-    //         vector::push_back(&mut token_ids, object::id_from_address(vector::pop_back(&mut tokens)));
-    //         i = i - 1;
-    //     };
-    //     barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, token_ids, ctx);
-    // }
 
     public entry fun claim_many_from_barn_and_pack(
         global: &mut Global,
         tokens: vector<ID>,
+        unstake: bool,
         ctx: &mut TxContext,
     ) {
-        barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, tokens, ctx);
+        barn::claim_many_from_barn_and_pack(
+            &mut global.barn_registry,
+            &mut global.barn,
+            &mut global.pack,
+            tokens,
+            unstake,
+            ctx
+        );
     }
 
     public entry fun claim_one_from_barn_and_pack(
         global: &mut Global,
         token: ID,
+        unstake: bool,
         ctx: &mut TxContext,
     ) {
         let token_id = vector::singleton<ID>(token);
-        barn::claim_many_from_barn_and_pack(&mut global.barn, &mut global.pack, token_id, ctx);
+        barn::claim_many_from_barn_and_pack(
+            &mut global.barn_registry,
+            &mut global.barn,
+            &mut global.pack,
+            token_id,
+            unstake,
+            ctx
+        );
     }
 
     /// Merges a vector of Coin then splits the `amount` from it, returns the
