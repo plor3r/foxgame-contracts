@@ -217,7 +217,7 @@ module fox_game::token_helper {
     }
 
     public fun is_chicken(_item_id: ID): bool {
-        false
+        true
     }
 
     /// Create a Capy with a specified gene sequence.

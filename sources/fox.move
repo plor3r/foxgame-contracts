@@ -108,7 +108,7 @@ module fox_game::fox {
         };
 
         if (stake) {
-            barn::add_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
+            barn::stake_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
         } else {
             vec::destroy_empty(tokens);
         };
@@ -120,7 +120,7 @@ module fox_game::fox {
         tokens: vector<FoxOrChicken>,
         ctx: &mut TxContext,
     ) {
-        barn::add_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
+        barn::stake_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
     }
 
     public entry fun claim_many_from_barn_and_pack(
