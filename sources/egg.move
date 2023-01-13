@@ -5,6 +5,7 @@ module fox_game::egg {
     use sui::tx_context::TxContext;
 
     friend fox_game::fox;
+    friend fox_game::barn;
 
     struct EGG has drop {}
 

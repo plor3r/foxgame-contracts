@@ -11,12 +11,14 @@ module fox_game::barn {
 
     use fox_game::token_helper::{Self, FoxOrChicken};
     use fox_game::random;
+    // use fox_game::egg;
     #[test_only]
-    use fox_game::token_helper::FoCRegistry;
+    use fox_game::token_helper::{FoCRegistry, alpha_for_fox};
+    use std::vector;
 
     friend fox_game::fox;
 
-    // maximum alpha score for a Wolf
+    // maximum alpha score for a fox
     const MAX_ALPHA: u8 = 8;
     // sheep earn 10 $EGG per day
     const DAILY_WOOL_RATE: u64 = 10 * 100000000;
@@ -25,7 +27,7 @@ module fox_game::barn {
     // TEST
     // const MINIMUM_TO_EXIT: u64 = 600;
     const ONE_DAY_IN_SECOND: u64 = 86400;
-    // wolves take a 20% tax on all $EGG claimed
+    // foxes take a 20% tax on all $EGG claimed
     const EGG_CLAIM_TAX_PERCENTAGE: u64 = 20;
     // there will only ever be (roughly) 1.4 million $EGG earned through staking
     const MAXIMUM_GLOBAL_EGG: u64 = 1400000 * 100000000;
@@ -50,9 +52,9 @@ module fox_game::barn {
         last_claim_timestamp: u64,
         // total alpha scores staked
         total_alpha_staked: u64,
-        // any rewards distributed when no wolves are staked
+        // any rewards distributed when no foxes are staked
         unaccounted_rewards: u64,
-        // amount of $Egg due for each alpha point staked
+        // amount of $EGG due for each alpha point staked
         egg_per_alpha: u64,
     }
 
@@ -134,7 +136,7 @@ module fox_game::barn {
     }
 
     public fun stake_many_to_barn_and_pack(
-        barn_registry: &mut BarnRegistry,
+        reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
         tokens: vector<FoxOrChicken>,
@@ -144,10 +146,10 @@ module fox_game::barn {
         while (i > 0) {
             let token = vec::pop_back(&mut tokens);
             if (token_helper::is_chicken(object::id(&token))) {
-                update_earnings(barn_registry, ctx);
-                stake_chicken_to_barn(barn_registry, barn, token, ctx);
+                update_earnings(reg, ctx);
+                stake_chicken_to_barn(reg, barn, token, ctx);
             } else {
-                stake_fox_to_pack(barn_registry, pack, token, ctx);
+                stake_fox_to_pack(reg, pack, token, ctx);
             };
             i = i - 1;
         };
@@ -155,43 +157,43 @@ module fox_game::barn {
     }
 
     public fun claim_many_from_barn_and_pack(
-        barn_registry: &mut BarnRegistry,
+        reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
         tokens: vector<ID>,
         unstake: bool,
         ctx: &mut TxContext,
     ) {
-        update_earnings(barn_registry, ctx);
+        update_earnings(reg, ctx);
         let i = vec::length<ID>(&tokens);
-        // FIXME: with owed
         let owed: u64 = 0;
         while (i > 0) {
             let token_id = vec::pop_back(&mut tokens);
             if (token_helper::is_chicken(token_id)) {
-                owed = owed + claim_chicken_from_barn(barn_registry, barn, token_id, unstake, ctx);
+                owed = owed + claim_chicken_from_barn(reg, barn, token_id, unstake, ctx);
             } else {
-                owed = owed + claim_fox_from_pack(pack, token_id, unstake, ctx);
+                owed = owed + claim_fox_from_pack(reg, pack, token_id, unstake, ctx);
             };
             i = i - 1;
         };
         if (owed == 0) { return };
+        // egg::mint(treasury_cap, owed, sender(ctx));
         vec::destroy_empty(tokens)
     }
 
-    fun stake_chicken_to_barn(barn_reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
-        barn_reg.total_chicken_staked = barn_reg.total_chicken_staked + 1;
+    fun stake_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
+        reg.total_chicken_staked = reg.total_chicken_staked + 1;
         add_chicken_to_barn(barn, item, ctx)
     }
 
-    fun stake_fox_to_pack(barn_reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
+    fun stake_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
         let alpha = token_helper::alpha_for_fox();
-        barn_reg.total_alpha_staked = barn_reg.total_alpha_staked + (alpha as u64);
+        reg.total_alpha_staked = reg.total_alpha_staked + (alpha as u64);
         add_fox_to_pack(pack, item, ctx)
     }
 
     fun claim_chicken_from_barn(
-        barn_registry: &mut BarnRegistry,
+        reg: &mut BarnRegistry,
         barn: &mut Barn,
         foc_id: ID,
         unstake: bool,
@@ -202,28 +204,30 @@ module fox_game::barn {
         let timenow = timestamp_now(ctx);
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
         let owed: u64;
-        if (barn_registry.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
+        if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             owed = (timenow - stake_time) * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
-        } else if (stake_time > barn_registry.last_claim_timestamp) {
+        } else if (stake_time > reg.last_claim_timestamp) {
             owed = 0; // $WOOL production stopped already
         } else {
             // stop earning additional $WOOL if it's all been earned
-            owed = (barn_registry.last_claim_timestamp - stake_time) * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
+            owed = (reg.last_claim_timestamp - stake_time) * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
         };
         if (unstake) {
             let id = object::new(ctx);
             if (random::rand_u64_range_with_seed(hash(object::uid_to_bytes(&id)), 0, 2) == 0) {
                 // 50% chance of all $EGG stolen
-                pay_wolf_tax(barn_registry, owed);
+                pay_fox_tax(reg, owed);
                 owed = 0;
             };
             object::delete(id);
-            barn_registry.total_chicken_staked = barn_registry.total_chicken_staked - 1;
+            reg.total_chicken_staked = reg.total_chicken_staked - 1;
             let item = remove_chicken_from_barn(barn, foc_id, ctx);
             transfer::transfer(item, sender(ctx));
         } else {
-            pay_wolf_tax(barn_registry, owed * EGG_CLAIM_TAX_PERCENTAGE / 100); // percentage tax to staked wolves
-            owed = owed * (100 - EGG_CLAIM_TAX_PERCENTAGE) / 100; // remainder goes to Sheep owner
+            // percentage tax to staked foxes
+            pay_fox_tax(reg, owed * EGG_CLAIM_TAX_PERCENTAGE / 100);
+            // remainder goes to Chicken owner
+            owed = owed * (100 - EGG_CLAIM_TAX_PERCENTAGE) / 100;
             // reset stake
             set_chicken_stake_value(barn, foc_id, timenow);
         };
@@ -231,11 +235,31 @@ module fox_game::barn {
         owed
     }
 
-    fun claim_fox_from_pack(pack: &mut Pack, foc_id: ID, unstake: bool, ctx: &mut TxContext): u64 {
-        let item = remove_fox_from_pack(pack, foc_id, ctx);
+    fun claim_fox_from_pack(
+        reg: &mut BarnRegistry,
+        pack: &mut Pack,
+        foc_id: ID,
+        unstake: bool,
+        ctx: &mut TxContext
+    ): u64 {
+        assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
+        // TODO get alpha from foc_id
+        let alpha = token_helper::alpha_for_fox();
+        assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
+
+        let stake_value = get_fox_stake_value(pack, alpha, foc_id);
+        // Calculate portion of tokens based on Alpha
+        let owed = (alpha as u64) * (reg.egg_per_alpha - stake_value);
+        if (unstake) {
+            // Remove Alpha from total staked
+            reg.total_alpha_staked = reg.total_alpha_staked - (alpha as u64);
+            let item = remove_fox_from_pack(pack, alpha, foc_id, ctx);
+            transfer::transfer(item, sender(ctx));
+        } else {
+            set_fox_stake_value(pack, alpha, foc_id, reg.egg_per_alpha);
+        };
         emit(FoCClaimed { id: foc_id, earned: 0, unstake });
-        transfer::transfer(item, sender(ctx));
-        0
+        owed
     }
 
     fun add_chicken_to_barn(barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
@@ -268,7 +292,7 @@ module fox_game::barn {
         let pack_items = table::borrow_mut(&mut pack.items, alpha);
         vec::push_back(pack_items, stake);
 
-        // Store the location of the wolf in the Pack
+        // Store the location of the fox in the Pack
         let token_index = vec::length(pack_items) - 1;
         table::add(&mut pack.pack_indices, foc_id, token_index);
         emit(FoCStaked { id: foc_id, owner: sender(ctx), value });
@@ -282,13 +306,9 @@ module fox_game::barn {
         item
     }
 
-    fun remove_fox_from_pack(pack: &mut Pack, foc_id: ID, ctx: &mut TxContext): FoxOrChicken {
-        // TODO get alpha from foc_id
-        let alpha = token_helper::alpha_for_fox();
-        assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
+    fun remove_fox_from_pack(pack: &mut Pack, alpha: u8, foc_id: ID, ctx: &mut TxContext): FoxOrChicken {
         let pack_items = table::borrow_mut(&mut pack.items, alpha);
         // get the index
-        assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
         let stake_index = table::remove(&mut pack.pack_indices, foc_id);
 
         let last_stake_index = vec::length(pack_items) - 1;
@@ -309,8 +329,8 @@ module fox_game::barn {
     }
 
     fun get_chicken_stake_value(barn: &mut Barn, foc_id: ID): u64 {
-        let stake_id = *table::borrow(&mut barn.stake, foc_id);
-        let stake = object_table::borrow(&mut barn.items, stake_id);
+        let stake_id = *table::borrow(&barn.stake, foc_id);
+        let stake = object_table::borrow(&barn.items, stake_id);
         stake.value
     }
 
@@ -320,24 +340,38 @@ module fox_game::barn {
         stake.value = new_value;
     }
 
-    // chooses a random Wolf thief when a newly minted token is stolen
-    public fun random_wolf_owner(pack: &mut Pack, seed: vector<u8>): address {
+    fun get_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID): u64 {
+        let items = table::borrow(&pack.items, alpha);
+        let stake_index = *table::borrow(&pack.pack_indices, foc_id);
+        let stake = vector::borrow(items, stake_index);
+        stake.value
+    }
+
+    fun set_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID, new_value: u64) {
+        let items = table::borrow_mut(&mut pack.items, alpha);
+        let stake_index = *table::borrow(&pack.pack_indices, foc_id);
+        let stake = vector::borrow_mut(items, stake_index);
+        stake.value = new_value;
+    }
+
+    // chooses a random fox thief when a newly minted token is stolen
+    public fun random_fox_owner(pack: &mut Pack, seed: vector<u8>): address {
         let total_alpha_staked = 10;
         if (total_alpha_staked == 0) {
             return @0x0
         };
         let bucket = random::rand_u64_range_with_seed(seed, 0, total_alpha_staked);
         let cumulative: u64 = 0;
-        // loop through each bucket of Wolves with the same alpha score
+        // loop through each bucket of foxes with the same alpha score
         let i = MAX_ALPHA - 3;
         while (i <= MAX_ALPHA) {
-            let wolves = table::borrow(&pack.items, i);
-            let wolves_length = vec::length(wolves);
-            cumulative = cumulative + wolves_length * (i as u64);
+            let foxes = table::borrow(&pack.items, i);
+            let foxes_length = vec::length(foxes);
+            cumulative = cumulative + foxes_length * (i as u64);
             // if the value is not inside of that bucket, keep going
             if (bucket < cumulative) {
-                // get the address of a random Wolf with that alpha score
-                return vec::borrow(wolves, random::rand_u64_with_seed(seed) % wolves_length).owner
+                // get the address of a random fox with that alpha score
+                return vec::borrow(foxes, random::rand_u64_with_seed(seed) % foxes_length).owner
             };
             i = i + 1;
         };
@@ -347,14 +381,14 @@ module fox_game::barn {
     // tracks $EGG earnings to ensure it stops once 1.4 million is eclipsed
     // FIXME use timestamp instead of epoch once sui team has supported timestamp
     // currently epoch will be update about every 24 hours,
-    fun update_earnings(barn_registry: &mut BarnRegistry, ctx: &mut TxContext) {
+    fun update_earnings(reg: &mut BarnRegistry, ctx: &mut TxContext) {
         let timenow = timestamp_now(ctx);
-        assert!(timenow <= barn_registry.last_claim_timestamp, ENOT_IN_PACK_OR_BARN);
-        if (barn_registry.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
-            barn_registry.total_egg_earned = barn_registry.total_egg_earned +
-                (timenow - barn_registry.last_claim_timestamp)
-                    * barn_registry.total_chicken_staked * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
-            barn_registry.last_claim_timestamp = timenow;
+        assert!(timenow <= reg.last_claim_timestamp, ENOT_IN_PACK_OR_BARN);
+        if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
+            reg.total_egg_earned = reg.total_egg_earned +
+                (timenow - reg.last_claim_timestamp)
+                    * reg.total_chicken_staked * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
+            reg.last_claim_timestamp = timenow;
         };
     }
 
@@ -363,16 +397,17 @@ module fox_game::barn {
     }
 
     // add $WOOL to claimable pot for the Pack
-    fun pay_wolf_tax(barn_registry: &mut BarnRegistry, amount: u64) {
-        if (barn_registry.total_alpha_staked == 0) {
+    fun pay_fox_tax(reg: &mut BarnRegistry, amount: u64) {
+        if (reg.total_alpha_staked == 0) {
             // if there's no staked foxed
-            barn_registry.unaccounted_rewards = barn_registry.unaccounted_rewards + amount; // keep track of $WOOL due to wolves
+            // keep track of $EGG due to foxes
+            reg.unaccounted_rewards = reg.unaccounted_rewards + amount;
             return
         };
         // makes sure to include any unaccounted $WOOL
-        barn_registry.egg_per_alpha = barn_registry.egg_per_alpha +
-            (amount + barn_registry.unaccounted_rewards) / barn_registry.total_alpha_staked;
-        barn_registry.unaccounted_rewards = 0;
+        reg.egg_per_alpha = reg.egg_per_alpha +
+            (amount + reg.unaccounted_rewards) / reg.total_alpha_staked;
+        reg.unaccounted_rewards = 0;
     }
 
     #[test]
@@ -397,8 +432,9 @@ module fox_game::barn {
             add_fox_to_pack(&mut pack, item, test_scenario::ctx(scenario));
 
             assert!(table::contains(&pack.pack_indices, item_id), 1);
+            let alpha = alpha_for_fox();
 
-            let item_out = remove_fox_from_pack(&mut pack, item_id, test_scenario::ctx(scenario));
+            let item_out = remove_fox_from_pack(&mut pack, alpha, item_id, test_scenario::ctx(scenario));
             assert!(!table::contains(&pack.pack_indices, item_id), 1);
 
             transfer::transfer(item_out, dummy);

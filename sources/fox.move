@@ -173,7 +173,7 @@ module fox_game::fox {
         let rand = *vec::borrow(&seed, 0) % 10;
         if (total_supply <= config::paid_tokens() || rand > 0)
             return sender; // top 10 bits haven't been used
-        let thief = barn::random_wolf_owner(pack, seed);
+        let thief = barn::random_fox_owner(pack, seed);
         if (thief == @0x0) return sender;
         return thief
     }
