@@ -4,10 +4,11 @@ set -x
 sui move build
 sui client publish . --gas-budget 30000
 
-export fox_game=0xba23f3debeb8d8686a3bde898496e71f2df0ba5b
-export global=0x1aac4c9d61495ed4344025f19ef833668cae819e
-export egg_treasury=0xf6903717e4978d1e9781ea8dda20086428198008
-sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"2\" false --gas-budget 100000
+export fox_game=0x41dc21b83f71008ce6e48c06eaafbc1c794e717b
+export global=0xe91eabff018b5da868a9ae145b87fca906d88250
+export egg_treasury=0x3137a7279d1a79fc3988e4d141547813989dd0de
+sui client call --function mint --module fox --package ${fox_game} --args ${global} \"2\" false \[\] --gas-budget 100000
+sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"2\" false \[\] --gas-budget 100000
 
 export item=0xa80bab2d68b2d70d1b1657de13333405e5a1f26f
 

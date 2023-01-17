@@ -6,6 +6,7 @@ module fox_game::fox {
     use sui::transfer::{transfer, share_object};
     use std::vector as vec;
     use sui::pay;
+    use sui::balance::Balance;
     use std::hash::sha3_256 as hash;
 
     use fox_game::config;
@@ -13,6 +14,7 @@ module fox_game::fox {
     use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
     use fox_game::egg::{Self, EGG};
     use std::vector;
+    use sui::balance;
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -26,10 +28,12 @@ module fox_game::fox {
     const EINVALID_MINTING: u64 = 5;
     /// INSUFFICIENT BALANCE
     const EINSUFFICIENT_SUI_BALANCE: u64 = 6;
-    const EINSUFFICIENT_WOOL_BALANCE: u64 = 7;
+    const EINSUFFICIENT_EGG_BALANCE: u64 = 7;
 
     struct Global has key {
         id: UID,
+        minting_enabled: bool,
+        balance: Balance<SUI>,
         pack: Pack,
         barn: Barn,
         barn_registry: BarnRegistry,
@@ -40,6 +44,8 @@ module fox_game::fox {
         transfer(token_helper::init_foc_manage_cap(ctx), sender(ctx));
         share_object(Global {
             id: object::new(ctx),
+            minting_enabled: true,
+            balance: balance::zero(),
             barn_registry: barn::init_barn_registry(ctx),
             pack: barn::init_pack(ctx),
             barn: barn::init_barn(ctx),
@@ -58,28 +64,36 @@ module fox_game::fox {
         80 * config::octas()
     }
 
+    fun assert_enabled(global: &mut Global, ) {
+        assert!(global.minting_enabled, ENOT_ENABLED);
+    }
+
     /// mint a fox or chicken
     public entry fun mint(
         global: &mut Global,
-        treasury_cap: &mut TreasuryCap<EGG>,
+        // treasury_cap: &mut TreasuryCap<EGG>,
         amount: u64,
         stake: bool,
+        pay_sui: vector<Coin<SUI>>,
+        // pay_egg: vector<Coin<EGG>>,
         ctx: &mut TxContext,
     ) {
-        assert!(config::is_enabled(), ENOT_ENABLED);
+        assert_enabled(global);
         assert!(amount > 0 && amount <= config::max_single_mint(), EINVALID_MINTING);
         let token_supply = token_helper::total_supply(&global.foc_registry);
         assert!(token_supply + amount <= config::target_max_tokens(), EALL_MINTED);
 
         let receiver_addr = sender(ctx);
-        // payment: vector<Coin<SUI>>
-        // if (token_supply < config::paid_tokens()) {
-        //     assert!(token_supply + amount <= config::paid_tokens(), EALL_MINTED);
-        //     let price = config::mint_price() * amount;
-        //     let (paid, remainder) = merge_and_split(payment, price, ctx);
-        //     coin::put(&mut reg.balance, paid);
-        //     transfer(remainder, sender(ctx))
-        // };
+
+        if (token_supply < config::paid_tokens()) {
+            assert!(token_supply + amount <= config::paid_tokens(), EALL_MINTED);
+            let price = config::mint_price() * amount;
+            let (paid, remainder) = merge_and_split(pay_sui, price, ctx);
+            coin::put(&mut global.balance, paid);
+            transfer(remainder, sender(ctx));
+        } else {
+            transfer(merge(pay_sui, ctx), sender(ctx));
+        };
         let id = object::new(ctx);
         let seed = hash(object::uid_to_bytes(&id));
         let total_egg_cost: u64 = 0;
@@ -94,21 +108,29 @@ module fox_game::fox {
             } else {
                 vec::push_back(&mut tokens, token);
             };
-            // wool cost
+            // egg cost
             total_egg_cost = total_egg_cost + mint_cost(token_index);
             i = i + 1;
         };
-        if (total_egg_cost > 0) {
-            // burn WOOL
-            // wool::register_coin(receiver);
-            // assert!(coin::balance<wool::Wool>(receiver_addr) >= total_wool_cost, error::invalid_state(EINSUFFICIENT_WOOL_BALANCE));
-            // wool::burn(receiver, total_wool_cost);
-            // wool::transfer(receiver, @woolf_deployer, total_wool_cost);
-            egg::mint(treasury_cap, total_egg_cost, receiver_addr, ctx);
-        };
+        // if (total_egg_cost > 0) {
+        //     // burn EGG
+        //     let total_egg = merge(pay_egg, ctx);
+        //     assert!(coin::value(&total_egg) >= total_egg_cost, EINSUFFICIENT_EGG_BALANCE);
+        //     let paid = coin::split(&mut total_egg, total_egg_cost, ctx);
+        //     egg::burn(treasury_cap, paid);
+        //     transfer(total_egg, sender(ctx));
+        // } else {
+        //     transfer(merge(pay_egg, ctx), sender(ctx));
+        // };
 
         if (stake) {
-            barn::stake_many_to_barn_and_pack(&mut global.barn_registry, &mut global.barn, &mut global.pack, tokens, ctx);
+            barn::stake_many_to_barn_and_pack(
+                &mut global.barn_registry,
+                &mut global.barn,
+                &mut global.pack,
+                tokens,
+                ctx
+            );
         } else {
             vec::destroy_empty(tokens);
         };
@@ -125,6 +147,7 @@ module fox_game::fox {
 
     public entry fun claim_many_from_barn_and_pack(
         global: &mut Global,
+        treasury_cap: &mut TreasuryCap<EGG>,
         tokens: vector<ID>,
         unstake: bool,
         ctx: &mut TxContext,
@@ -133,6 +156,7 @@ module fox_game::fox {
             &mut global.barn_registry,
             &mut global.barn,
             &mut global.pack,
+            treasury_cap,
             tokens,
             unstake,
             ctx
@@ -141,6 +165,7 @@ module fox_game::fox {
 
     public entry fun claim_one_from_barn_and_pack(
         global: &mut Global,
+        treasury_cap: &mut TreasuryCap<EGG>,
         token: ID,
         unstake: bool,
         ctx: &mut TxContext,
@@ -150,6 +175,7 @@ module fox_game::fox {
             &mut global.barn_registry,
             &mut global.barn,
             &mut global.pack,
+            treasury_cap,
             token_id,
             unstake,
             ctx
@@ -158,13 +184,19 @@ module fox_game::fox {
 
     /// Merges a vector of Coin then splits the `amount` from it, returns the
     /// Coin with the amount and the remainder.
-    fun merge_and_split(
-        coins: vector<Coin<SUI>>, amount: u64, ctx: &mut TxContext
-    ): (Coin<SUI>, Coin<SUI>) {
+    fun merge_and_split<T>(
+        coins: vector<Coin<T>>, amount: u64, ctx: &mut TxContext
+    ): (Coin<T>, Coin<T>) {
         let base = vec::pop_back(&mut coins);
         pay::join_vec(&mut base, coins);
         assert!(coin::value(&base) > amount, 0);
         (coin::split(&mut base, amount, ctx), base)
+    }
+
+    fun merge<T>(coins: vector<Coin<T>>, ctx: &mut TxContext): Coin<T> {
+        let base = vec::pop_back(&mut coins);
+        pay::join_vec(&mut base, coins);
+        base
     }
 
     // the first 20% (ETH purchases) go to the minter

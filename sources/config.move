@@ -20,7 +20,8 @@ module fox_game::config {
     }
 
     public fun mint_price(): u64 {
-        1 * octas()
+        // 1 * octas()
+        1
     }
 
     public fun is_enabled(): bool {

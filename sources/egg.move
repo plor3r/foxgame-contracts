@@ -34,10 +34,4 @@ module fox_game::egg {
     public(friend) fun burn(treasury_cap: &mut TreasuryCap<EGG>, coin: Coin<EGG>) {
         coin::burn(treasury_cap, coin);
     }
-
-    #[test_only]
-    /// Wrapper of module initializer for testing
-    public fun test_init(ctx: &mut TxContext) {
-        init(EGG {}, ctx)
-    }
 }

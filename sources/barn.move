@@ -5,16 +5,18 @@ module fox_game::barn {
     use sui::table::{Self, Table};
     use sui::object_table::{Self, ObjectTable};
     use sui::event::emit;
+    use sui::coin::TreasuryCap;
 
     use std::vector as vec;
     use std::hash::sha3_256 as hash;
 
     use fox_game::token_helper::{Self, FoxOrChicken};
     use fox_game::random;
-    // use fox_game::egg;
+    use fox_game::egg::{Self, EGG};
     #[test_only]
     use fox_game::token_helper::{FoCRegistry, alpha_for_fox};
-    use std::vector;
+
+
 
     friend fox_game::fox;
 
@@ -160,6 +162,7 @@ module fox_game::barn {
         reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
+        treasury_cap: &mut TreasuryCap<EGG>,
         tokens: vector<ID>,
         unstake: bool,
         ctx: &mut TxContext,
@@ -177,7 +180,7 @@ module fox_game::barn {
             i = i - 1;
         };
         if (owed == 0) { return };
-        // egg::mint(treasury_cap, owed, sender(ctx));
+        egg::mint(treasury_cap, owed, sender(ctx), ctx);
         vec::destroy_empty(tokens)
     }
 
@@ -343,14 +346,14 @@ module fox_game::barn {
     fun get_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID): u64 {
         let items = table::borrow(&pack.items, alpha);
         let stake_index = *table::borrow(&pack.pack_indices, foc_id);
-        let stake = vector::borrow(items, stake_index);
+        let stake = vec::borrow(items, stake_index);
         stake.value
     }
 
     fun set_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID, new_value: u64) {
         let items = table::borrow_mut(&mut pack.items, alpha);
         let stake_index = *table::borrow(&pack.pack_indices, foc_id);
-        let stake = vector::borrow_mut(items, stake_index);
+        let stake = vec::borrow_mut(items, stake_index);
         stake.value = new_value;
     }
 
