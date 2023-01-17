@@ -4,9 +4,9 @@ set -x
 sui move build
 sui client publish . --gas-budget 30000
 
-export fox_game=0x41dc21b83f71008ce6e48c06eaafbc1c794e717b
-export global=0xe91eabff018b5da868a9ae145b87fca906d88250
-export egg_treasury=0x3137a7279d1a79fc3988e4d141547813989dd0de
+export fox_game=0xed8cde26fd462edb690e624cd9a90909032710c1
+export global=0x0c0ea2bd558b5c42521110690990c03991cf9097
+export egg_treasury=0xa5f1c0204c46b5699785fc5bb924c1d9a3a8dda3
 sui client call --function mint --module fox --package ${fox_game} --args ${global} \"2\" false \[\] --gas-budget 100000
 sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"2\" false \[\] --gas-budget 100000
 

@@ -71,13 +71,15 @@ module fox_game::barn {
     struct Barn has key, store {
         id: UID,
         stake: Table<ID, ID>,
-        items: ObjectTable<ID, Stake>
+        items: ObjectTable<ID, Stake>,
+        staked: Table<address, vector<ID>>,
     }
 
     struct Pack has key, store {
         id: UID,
         items: Table<u8, vector<Stake>>,
         pack_indices: Table<ID, u64>,
+        staked: Table<address, vector<ID>>,
     }
 
     struct FoCStore<phantom T: key> has key {
@@ -123,7 +125,8 @@ module fox_game::barn {
         Pack {
             id,
             items: table::new(ctx),
-            pack_indices: table::new(ctx)
+            pack_indices: table::new(ctx),
+            staked: table::new(ctx),
         }
     }
 
@@ -133,8 +136,27 @@ module fox_game::barn {
         Barn {
             id,
             stake: table::new(ctx),
-            items: object_table::new(ctx)
+            items: object_table::new(ctx),
+            staked: table::new(ctx),
         }
+    }
+
+    fun record_staked(staked: &mut Table<address, vector<ID>>, account: address, token_id: ID) {
+        if (table::contains(staked, account)) {
+            vec::push_back(table::borrow_mut(staked, account), token_id);
+        } else {
+            table::add(staked, account, vec::singleton(token_id));
+        };
+    }
+
+    fun remove_staked(staked: &mut Table<address, vector<ID>>, account: address, token_id: ID) {
+        if (table::contains(staked, account)) {
+            let list = table::borrow_mut(staked, account);
+            let (is_in, index) = vec::index_of(list, &token_id);
+            if (is_in) {
+                vec::remove(list, index);
+            };
+        };
     }
 
     public fun stake_many_to_barn_and_pack(
@@ -186,12 +208,14 @@ module fox_game::barn {
 
     fun stake_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
         reg.total_chicken_staked = reg.total_chicken_staked + 1;
+        record_staked(&mut barn.staked, sender(ctx), object::id(&item));
         add_chicken_to_barn(barn, item, ctx)
     }
 
     fun stake_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
         let alpha = token_helper::alpha_for_fox();
         reg.total_alpha_staked = reg.total_alpha_staked + (alpha as u64);
+        record_staked(&mut pack.staked, sender(ctx), object::id(&item));
         add_fox_to_pack(pack, item, ctx)
     }
 
@@ -224,6 +248,7 @@ module fox_game::barn {
             };
             object::delete(id);
             reg.total_chicken_staked = reg.total_chicken_staked - 1;
+            remove_staked(&mut barn.staked, sender(ctx), foc_id);
             let item = remove_chicken_from_barn(barn, foc_id, ctx);
             transfer::transfer(item, sender(ctx));
         } else {
@@ -256,6 +281,7 @@ module fox_game::barn {
         if (unstake) {
             // Remove Alpha from total staked
             reg.total_alpha_staked = reg.total_alpha_staked - (alpha as u64);
+            remove_staked(&mut pack.staked, sender(ctx), foc_id);
             let item = remove_fox_from_pack(pack, alpha, foc_id, ctx);
             transfer::transfer(item, sender(ctx));
         } else {
