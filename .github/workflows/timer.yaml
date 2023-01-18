@@ -10,10 +10,6 @@ jobs:
     name: Trigger setting time
     runs-on: ubuntu-latest
     steps:
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - run: sudo apt-get install -y libssl-dev libclang-dev
       - name: install sui
         run: curl -L https://github.com/MystenLabs/sui/releases/download/devnet-0.21.0/sui > sui
       - run: chmod +x sui
@@ -21,7 +17,7 @@ jobs:
         run: ./sui keytool import "${{ secrets.MNEMONIC }}" ed25519
       - name: switch address
         run: |
-          (sleep 1; echo y;sleep 1;echo;sleep 1;echo 0;) | sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
-          sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
+          (sleep 1; echo y;sleep 1;echo;sleep 1;echo 0;) | ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
+          ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
       - name: call set timer
         run: ./sui client call --function set_timestamp --module fox --package 0xa12db00ce4eb63ffa28fb384a4119e10fb688651 --args 0xdffbff81a48aa3cd9d24d9501ad552923218bfe0 0x741cdbe1fabfcb51e2e6c03b8b1823503d46eaf1 \"$(date +%s)\" --gas-budget 30000
