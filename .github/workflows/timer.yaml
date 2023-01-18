@@ -10,13 +10,16 @@ jobs:
     name: Trigger setting time
     runs-on: ubuntu-latest
     steps:
-      - name: cURL request
-        # Hit the webhook endpoint to rebuild  from the "main" branch
-        run: curl -L https://github.com/MystenLabs/sui/releases/download/devnet-0.21.0/sui > sui
-      - run: chmod +x sui
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: apt-get install libssl-dev libclang-dev
+      - name: install sui
+        run: cargo install --locked --git https://github.com/MystenLabs/sui.git --branch devnet sui
+      - run: source "$HOME/.cargo/env"
       - name: import address
-        run: ./sui keytool import "${{ secrets.MNEMONIC }}" ed25519
+        run: sui keytool import "${{ secrets.MNEMONIC }}" ed25519
       - name: switch address
-        run: ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
+        run: sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
       - name: call set timer
-        run: ./sui client call --function set_timestamp --module fox --package 0x02321adca54d8c4d42f3e385951f197d72ed264d --args 0x8a5143cdd24abcafbc4219d95ade5422511158ca 0xb4408cabc58240f8d53610a418e5d118404a4413 \"$(date +%s)\" --gas-budget 30000
+        run: sui client call --function set_timestamp --module fox --package 0x02321adca54d8c4d42f3e385951f197d72ed264d --args 0x8a5143cdd24abcafbc4219d95ade5422511158ca 0xb4408cabc58240f8d53610a418e5d118404a4413 \"$(date +%s)\" --gas-budget 30000
