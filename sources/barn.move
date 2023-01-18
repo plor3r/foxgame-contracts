@@ -410,7 +410,6 @@ module fox_game::barn {
     // currently epoch will be update about every 24 hours,
     fun update_earnings(reg: &mut BarnRegistry, ctx: &mut TxContext) {
         let timenow = timestamp_now(reg, ctx);
-        assert!(timenow <= reg.last_claim_timestamp, ESTILL_COLD);
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             reg.total_egg_earned = reg.total_egg_earned +
                 (timenow - reg.last_claim_timestamp)
