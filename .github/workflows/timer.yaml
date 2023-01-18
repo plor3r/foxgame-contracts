@@ -4,7 +4,7 @@ on:
   push:
   schedule:
     # Runs "At every 2nd minute" (see https://crontab.guru)
-    - cron: '0 * * * *'
+    - cron: '*/5 * * * *'
 jobs:
   build:
     name: Trigger setting time
