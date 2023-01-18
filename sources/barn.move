@@ -17,8 +17,6 @@ module fox_game::barn {
     #[test_only]
     use fox_game::token_helper::{FoCRegistry, alpha_for_fox};
 
-
-
     friend fox_game::fox;
 
     // maximum alpha score for a fox
@@ -43,7 +41,7 @@ module fox_game::barn {
     const EINVALID_CALLER: u64 = 3;
     /// For when someone tries to unstake without ownership.
     const EINVALID_OWNER: u64 = 4;
-    const ESTILL_COLD: u64 = 25;
+    const ESTILL_COLD: u64 = 5;
 
     struct BarnRegistry has key, store {
         id: UID,
@@ -243,7 +241,6 @@ module fox_game::barn {
             };
             object::delete(id);
             reg.total_chicken_staked = reg.total_chicken_staked - 1;
-
             let (item, stake_id) = remove_chicken_from_barn(barn, foc_id, ctx);
             remove_staked(&mut barn.id, sender(ctx), stake_id);
             transfer::transfer(item, sender(ctx));
@@ -410,11 +407,11 @@ module fox_game::barn {
     // currently epoch will be update about every 24 hours,
     fun update_earnings(reg: &mut BarnRegistry, ctx: &mut TxContext) {
         let timenow = timestamp_now(ctx);
-        assert!(timenow <= reg.last_claim_timestamp, ENOT_IN_PACK_OR_BARN);
+        assert!(timenow <= reg.last_claim_timestamp, ESTILL_COLD);
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             reg.total_egg_earned = reg.total_egg_earned +
                 (timenow - reg.last_claim_timestamp)
-                    * reg.total_chicken_staked * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
+                    * reg.total_chicken_staked / ONE_DAY_IN_SECOND * DAILY_WOOL_RATE;
             reg.last_claim_timestamp = timenow;
         };
     }
@@ -431,7 +428,7 @@ module fox_game::barn {
             reg.unaccounted_rewards = reg.unaccounted_rewards + amount;
             return
         };
-        // makes sure to include any unaccounted $WOOL
+        // makes sure to include any unaccounted $EGG
         reg.egg_per_alpha = reg.egg_per_alpha +
             (amount + reg.unaccounted_rewards) / reg.total_alpha_staked;
         reg.unaccounted_rewards = 0;
