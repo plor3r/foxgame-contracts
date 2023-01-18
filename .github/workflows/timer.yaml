@@ -3,8 +3,8 @@ name: Set time to Sui Wolf Game on a CRON Schedule
 on:
   push:
   schedule:
-    # Runs "At every 2nd minute" (see https://crontab.guru)
-    - cron: '*/5 * * * *'
+    # Runs "At every 15th minute" (see https://crontab.guru)
+    - cron: '*/15 * * * *'
 jobs:
   build:
     name: Trigger setting time

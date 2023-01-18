@@ -20,7 +20,7 @@ module fox_game::config {
     }
 
     public fun octas(): u64 {
-        100000000
+        1000000000
     }
 
     public fun max_single_mint(): u64 {
@@ -33,7 +33,8 @@ module fox_game::config {
 
     public fun mint_price(): u64 {
         // 1 * octas()
-        1
+        // 0.0099
+        9900000
     }
 
     public fun is_enabled(): bool {

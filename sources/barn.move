@@ -22,7 +22,7 @@ module fox_game::barn {
     // maximum alpha score for a fox
     const MAX_ALPHA: u8 = 8;
     // sheep earn 10 $EGG per day
-    const DAILY_WOOL_RATE: u64 = 10 * 100000000;
+    const DAILY_EGG_RATE: u64 = 10 * 1000000000;
     // chicken must have 2 days worth of $EGG to unstake or else it's too cold
     const MINIMUM_TO_EXIT: u64 = 2 * 86400;
     // TEST
@@ -31,7 +31,7 @@ module fox_game::barn {
     // foxes take a 20% tax on all $EGG claimed
     const EGG_CLAIM_TAX_PERCENTAGE: u64 = 20;
     // there will only ever be (roughly) 1.4 million $EGG earned through staking
-    const MAXIMUM_GLOBAL_EGG: u64 = 1400000 * 100000000;
+    const MAXIMUM_GLOBAL_EGG: u64 = 1400000 * 1000000000;
 
     //
     // Errors
@@ -228,12 +228,12 @@ module fox_game::barn {
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
         let owed: u64;
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
-            owed = (timenow - stake_time) * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
+            owed = (timenow - stake_time) * DAILY_EGG_RATE / ONE_DAY_IN_SECOND;
         } else if (stake_time > reg.last_claim_timestamp) {
             owed = 0; // $WOOL production stopped already
         } else {
             // stop earning additional $WOOL if it's all been earned
-            owed = (reg.last_claim_timestamp - stake_time) * DAILY_WOOL_RATE / ONE_DAY_IN_SECOND;
+            owed = (reg.last_claim_timestamp - stake_time) * DAILY_EGG_RATE / ONE_DAY_IN_SECOND;
         };
         if (unstake) {
             let id = object::new(ctx);
@@ -413,7 +413,7 @@ module fox_game::barn {
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             reg.total_egg_earned = reg.total_egg_earned +
                 (timenow - reg.last_claim_timestamp)
-                    * reg.total_chicken_staked / ONE_DAY_IN_SECOND * DAILY_WOOL_RATE;
+                    * reg.total_chicken_staked / ONE_DAY_IN_SECOND * DAILY_EGG_RATE;
             reg.last_claim_timestamp = timenow;
         };
     }
