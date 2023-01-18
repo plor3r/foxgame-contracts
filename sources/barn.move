@@ -57,6 +57,8 @@ module fox_game::barn {
         unaccounted_rewards: u64,
         // amount of $EGG due for each alpha point staked
         egg_per_alpha: u64,
+        // fake_timestamp
+        timestamp: u64,
     }
 
     // struct to store a stake's token, owner, and earning values
@@ -110,6 +112,7 @@ module fox_game::barn {
             total_alpha_staked: 0,
             unaccounted_rewards: 0,
             egg_per_alpha: 0,
+            timestamp: 0,
         }
     }
 
@@ -201,14 +204,14 @@ module fox_game::barn {
 
     fun stake_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
         reg.total_chicken_staked = reg.total_chicken_staked + 1;
-        let stake_id = add_chicken_to_barn(barn, item, ctx);
+        let stake_id = add_chicken_to_barn(reg, barn, item, ctx);
         record_staked(&mut barn.id, sender(ctx), stake_id);
     }
 
     fun stake_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
         let alpha = token_helper::alpha_for_fox();
         reg.total_alpha_staked = reg.total_alpha_staked + (alpha as u64);
-        let stake_id = add_fox_to_pack(pack, item, ctx);
+        let stake_id = add_fox_to_pack(reg, pack, item, ctx);
         record_staked(&mut pack.id, sender(ctx), stake_id);
     }
 
@@ -221,7 +224,7 @@ module fox_game::barn {
     ): u64 {
         assert!(object_table::contains(&barn.items, foc_id), ENOT_IN_PACK_OR_BARN);
         let stake_time = get_chicken_stake_value(barn, foc_id);
-        let timenow = timestamp_now(ctx);
+        let timenow = timestamp_now(reg, ctx);
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
         let owed: u64;
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
@@ -284,9 +287,9 @@ module fox_game::barn {
         owed
     }
 
-    fun add_chicken_to_barn(barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext): ID {
+    fun add_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext): ID {
         let foc_id = object::id(&item);
-        let value = timestamp_now(ctx);
+        let value = timestamp_now(reg, ctx);
         let stake = Stake {
             id: object::new(ctx),
             item,
@@ -299,9 +302,9 @@ module fox_game::barn {
         stake_id
     }
 
-    fun add_fox_to_pack(pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext): ID {
+    fun add_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext): ID {
         let foc_id = object::id(&foc);
-        let value = timestamp_now(ctx);
+        let value = timestamp_now(reg, ctx);
         let stake = Stake {
             id: object::new(ctx),
             item: foc,
@@ -406,7 +409,7 @@ module fox_game::barn {
     // FIXME use timestamp instead of epoch once sui team has supported timestamp
     // currently epoch will be update about every 24 hours,
     fun update_earnings(reg: &mut BarnRegistry, ctx: &mut TxContext) {
-        let timenow = timestamp_now(ctx);
+        let timenow = timestamp_now(reg, ctx);
         assert!(timenow <= reg.last_claim_timestamp, ESTILL_COLD);
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             reg.total_egg_earned = reg.total_egg_earned +
@@ -416,8 +419,12 @@ module fox_game::barn {
         };
     }
 
-    fun timestamp_now(ctx: &mut TxContext): u64 {
-        tx_context::epoch(ctx)
+    public(friend) fun set_timestamp(reg: &mut BarnRegistry, current: u64, _ctx: &mut TxContext) {
+        reg.timestamp = current;
+    }
+
+    fun timestamp_now(reg: &mut BarnRegistry, _ctx: &mut TxContext): u64 {
+        reg.timestamp
     }
 
     // add $WOOL to claimable pot for the Pack
@@ -453,7 +460,8 @@ module fox_game::barn {
             let item = token_helper::create_foc(&mut foc_registry, test_scenario::ctx(scenario));
             let item_id = object::id(&item);
             let pack = test_scenario::take_shared<Pack>(scenario);
-            add_fox_to_pack(&mut pack, item, test_scenario::ctx(scenario));
+            let barn_reg = init_barn_registry(test_scenario::ctx(scenario));
+            add_fox_to_pack(&mut barn_reg, &mut pack, item, test_scenario::ctx(scenario));
 
             assert!(table::contains(&pack.pack_indices, item_id), 1);
             let alpha = alpha_for_fox();

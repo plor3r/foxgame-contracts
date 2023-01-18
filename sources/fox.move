@@ -15,6 +15,7 @@ module fox_game::fox {
     use fox_game::egg::{Self, EGG};
     use std::vector;
     use sui::balance;
+    use fox_game::config::TimeManagerCap;
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -50,7 +51,8 @@ module fox_game::fox {
             pack: barn::init_pack(ctx),
             barn: barn::init_barn(ctx),
             foc_registry: token_helper::init_foc_registry(ctx),
-        })
+        });
+        transfer(config::init_time_manager_cap(ctx), @0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa);
     }
 
     public fun mint_cost(token_index: u64): u64 {
@@ -64,8 +66,12 @@ module fox_game::fox {
         80 * config::octas()
     }
 
-    fun assert_enabled(global: &mut Global, ) {
+    fun assert_enabled(global: &mut Global) {
         assert!(global.minting_enabled, ENOT_ENABLED);
+    }
+
+    public entry fun set_timestamp(_: &TimeManagerCap, global: &mut Global, current: u64, ctx: &mut TxContext) {
+        barn::set_timestamp(&mut global.barn_registry, current, ctx)
     }
 
     /// mint a fox or chicken
@@ -193,7 +199,7 @@ module fox_game::fox {
         (coin::split(&mut base, amount, ctx), base)
     }
 
-    fun merge<T>(coins: vector<Coin<T>>, ctx: &mut TxContext): Coin<T> {
+    fun merge<T>(coins: vector<Coin<T>>, _ctx: &mut TxContext): Coin<T> {
         let base = vec::pop_back(&mut coins);
         pay::join_vec(&mut base, coins);
         base
