@@ -70,7 +70,6 @@ module fox_game::barn {
 
     struct Barn has key, store {
         id: UID,
-        stake: Table<ID, ID>,
         items: ObjectTable<ID, Stake>,
         staked: Table<address, vector<ID>>,
     }
@@ -80,10 +79,6 @@ module fox_game::barn {
         items: Table<u8, vector<Stake>>,
         pack_indices: Table<ID, u64>,
         staked: Table<address, vector<ID>>,
-    }
-
-    struct FoCStore<phantom T: key> has key {
-        id: UID
     }
 
     // Events
@@ -135,7 +130,6 @@ module fox_game::barn {
         emit(BarnCreated { id: object::uid_to_inner(&id) });
         Barn {
             id,
-            stake: table::new(ctx),
             items: object_table::new(ctx),
             staked: table::new(ctx),
         }
@@ -226,7 +220,7 @@ module fox_game::barn {
         unstake: bool,
         ctx: &mut TxContext
     ): u64 {
-        assert!(table::contains(&barn.stake, foc_id), ENOT_IN_PACK_OR_BARN);
+        assert!(object_table::contains(&barn.items, foc_id), ENOT_IN_PACK_OR_BARN);
         let stake_time = get_chicken_stake_value(barn, foc_id);
         let timenow = timestamp_now(ctx);
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
@@ -300,9 +294,8 @@ module fox_game::barn {
             value,
             owner: sender(ctx),
         };
-        table::add(&mut barn.stake, foc_id, object::id(&stake));
         emit(FoCStaked { id: foc_id, owner: sender(ctx), value });
-        object_table::add(&mut barn.items, object::id(&stake), stake);
+        object_table::add(&mut barn.items, foc_id, stake);
     }
 
     fun add_fox_to_pack(pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext) {
@@ -328,8 +321,7 @@ module fox_game::barn {
     }
 
     fun remove_chicken_from_barn(barn: &mut Barn, foc_id: ID, ctx: &mut TxContext): FoxOrChicken {
-        let stake_id = table::remove(&mut barn.stake, foc_id);
-        let Stake { id, item, value: _, owner } = object_table::remove(&mut barn.items, stake_id);
+        let Stake { id, item, value: _, owner } = object_table::remove(&mut barn.items, foc_id);
         assert!(tx_context::sender(ctx) == owner, EINVALID_OWNER);
         object::delete(id);
         item
@@ -358,14 +350,12 @@ module fox_game::barn {
     }
 
     fun get_chicken_stake_value(barn: &mut Barn, foc_id: ID): u64 {
-        let stake_id = *table::borrow(&barn.stake, foc_id);
-        let stake = object_table::borrow(&barn.items, stake_id);
+        let stake = object_table::borrow(&barn.items, foc_id);
         stake.value
     }
 
     fun set_chicken_stake_value(barn: &mut Barn, foc_id: ID, new_value: u64) {
-        let stake_id = *table::borrow(&mut barn.stake, foc_id);
-        let stake = object_table::borrow_mut(&mut barn.items, stake_id);
+        let stake = object_table::borrow_mut(&mut barn.items, foc_id);
         stake.value = new_value;
     }
 
