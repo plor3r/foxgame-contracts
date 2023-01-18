@@ -13,7 +13,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: apt-get install libssl-dev libclang-dev
+      - run: sudo apt-get install -y libssl-dev libclang-dev
       - name: install sui
         run: cargo install --locked --git https://github.com/MystenLabs/sui.git --branch devnet sui
       - run: source "$HOME/.cargo/env"
