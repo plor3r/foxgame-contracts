@@ -10,9 +10,14 @@ module fox_game::token_helper {
     use std::hash::sha3_256 as hash;
 
     use fox_game::utf8_utils::{to_string, to_vector};
+    use sui::table::{Self, Table};
 
     friend fox_game::fox;
     friend fox_game::barn;
+
+    // Errors
+
+    const ENOT_EXISTS: u64 = 1;
 
     /// Base path for `FoxOrChicken.url` attribute. Is temporary and improves
     /// explorer / wallet display. Always points to the dev/testnet server.
@@ -31,6 +36,8 @@ module fox_game::token_helper {
     struct FoxOrChicken has key, store {
         id: UID,
         index: u64,
+        is_chicken: bool,
+        alpha: u8,
         url: Url,
         link: Url,
         item_count: u8,
@@ -50,6 +57,8 @@ module fox_game::token_helper {
         foc_hash: vector<u8>,
         rarities: vector<vector<u8>>,
         aliases: vector<vector<u8>>,
+        types: Table<ID, bool>,
+        alphas: Table<ID, u8>,
     }
 
     // ======= Types =======
@@ -184,40 +193,53 @@ module fox_game::token_helper {
             foc_born: 0,
             rarities,
             aliases,
+            types: table::new(ctx),
+            alphas: table::new(ctx),
         }
     }
 
     /// Construct an image URL for the capy.
-    fun img_url(c: u64, is_chicken: bool): Url {
+    fun img_url(index: u64, is_chicken: bool): Url {
         let capy_url = *&IMAGE_URL;
         if (is_chicken) {
             vec::append(&mut capy_url, b"sheep/");
         } else {
             vec::append(&mut capy_url, b"wolf/");
         };
-        vec::append(&mut capy_url, to_vector(c));
+        vec::append(&mut capy_url, to_vector(index));
         vec::append(&mut capy_url, b".svg");
 
         url::new_unsafe_from_bytes(capy_url)
     }
 
     /// Construct a Url to the capy.art.
-    fun link_url(c: u64, _is_chicken: bool): Url {
+    fun link_url(index: u64, _is_chicken: bool): Url {
         let capy_url = *&MAIN_URL;
-        vec::append(&mut capy_url, to_vector(c));
+        vec::append(&mut capy_url, to_vector(index));
         url::new_unsafe_from_bytes(capy_url)
     }
 
-    public fun alpha_for_fox(): u8 {
-        7
+    public fun alpha_for_fox(token: &FoxOrChicken): u8 {
+        token.alpha
     }
+
+    public fun alpha_for_fox_from_id(reg: &mut FoCRegistry, token_id: ID): u8 {
+        assert!(table::contains(&reg.alphas, token_id), ENOT_EXISTS);
+        *table::borrow(&reg.alphas, token_id)
+    }
+
 
     public fun total_supply(reg: &FoCRegistry): u64 {
         reg.foc_born
     }
 
-    public fun is_chicken(_item_id: ID): bool {
-        true
+    public fun is_chicken(token: &FoxOrChicken): bool {
+        token.is_chicken
+    }
+
+    public fun is_chicken_from_id(reg: &mut FoCRegistry, token_id: ID): bool {
+        assert!(table::contains(&reg.types, token_id), ENOT_EXISTS);
+        *table::borrow(&reg.types, token_id)
     }
 
     /// Create a Capy with a specified gene sequence.
@@ -232,8 +254,12 @@ module fox_game::token_helper {
         reg.foc_hash = hash(reg.foc_hash);
 
         let fc = generate_traits(reg);
-
         let attributes = get_attributes(&fc);
+
+        table::add(&mut reg.types, object::uid_to_inner(&id), fc.is_chicken);
+        if (!fc.is_chicken) {
+            table::add(&mut reg.alphas, object::uid_to_inner(&id), fc.alpha_index);
+        };
 
         emit(FoCBorn {
             id: object::uid_to_inner(&id),
@@ -245,6 +271,8 @@ module fox_game::token_helper {
         FoxOrChicken {
             id,
             index: reg.foc_born,
+            is_chicken: fc.is_chicken,
+            alpha: fc.alpha_index,
             url: img_url(reg.foc_born, fc.is_chicken),
             link: link_url(reg.foc_born, fc.is_chicken),
             attributes,
@@ -284,7 +312,7 @@ module fox_game::token_helper {
         // seed: &vector<u8>
     ): Traits {
         let seed = reg.foc_hash;
-        let is_chicken = *vec::borrow(&seed, 0) >= 26; // 90%
+        let is_chicken = *vec::borrow(&seed, 0) >= 26; // 90% 0f 255
         let shift = if (is_chicken) 0 else 9;
         Traits {
             is_chicken,

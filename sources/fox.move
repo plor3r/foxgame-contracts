@@ -168,6 +168,7 @@ module fox_game::fox {
         ctx: &mut TxContext,
     ) {
         barn::claim_many_from_barn_and_pack(
+            &mut global.foc_registry,
             &mut global.barn_registry,
             &mut global.barn,
             &mut global.pack,

@@ -11,11 +11,9 @@ module fox_game::barn {
     use std::vector as vec;
     use std::hash::sha3_256 as hash;
 
-    use fox_game::token_helper::{Self, FoxOrChicken};
+    use fox_game::token_helper::{Self, FoxOrChicken, FoCRegistry, alpha_for_fox, alpha_for_fox_from_id};
     use fox_game::random;
     use fox_game::egg::{Self, EGG};
-    #[test_only]
-    use fox_game::token_helper::{FoCRegistry, alpha_for_fox};
 
     friend fox_game::fox;
 
@@ -167,7 +165,7 @@ module fox_game::barn {
         let i = vec::length<FoxOrChicken>(&tokens);
         while (i > 0) {
             let token = vec::pop_back(&mut tokens);
-            if (token_helper::is_chicken(object::id(&token))) {
+            if (token_helper::is_chicken(&token)) {
                 update_earnings(reg, ctx);
                 stake_chicken_to_barn(reg, barn, token, ctx);
             } else {
@@ -179,6 +177,7 @@ module fox_game::barn {
     }
 
     public fun claim_many_from_barn_and_pack(
+        foc_reg: &mut FoCRegistry,
         reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
@@ -192,10 +191,10 @@ module fox_game::barn {
         let owed: u64 = 0;
         while (i > 0) {
             let token_id = vec::pop_back(&mut tokens);
-            if (token_helper::is_chicken(token_id)) {
+            if (token_helper::is_chicken_from_id(foc_reg, token_id)) {
                 owed = owed + claim_chicken_from_barn(reg, barn, token_id, unstake, ctx);
             } else {
-                owed = owed + claim_fox_from_pack(reg, pack, token_id, unstake, ctx);
+                owed = owed + claim_fox_from_pack(foc_reg, reg, pack, token_id, unstake, ctx);
             };
             i = i - 1;
         };
@@ -211,7 +210,7 @@ module fox_game::barn {
     }
 
     fun stake_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
-        let alpha = token_helper::alpha_for_fox();
+        let alpha = alpha_for_fox(&item);
         reg.total_alpha_staked = reg.total_alpha_staked + (alpha as u64);
         let stake_id = add_fox_to_pack(reg, pack, item, ctx);
         record_staked(&mut pack.id, sender(ctx), stake_id);
@@ -239,6 +238,7 @@ module fox_game::barn {
         };
         if (unstake) {
             let id = object::new(ctx);
+            // FIXME
             if (random::rand_u64_range_with_seed(hash(object::uid_to_bytes(&id)), 0, 2) == 0) {
                 // 50% chance of all $EGG stolen
                 pay_fox_tax(reg, owed);
@@ -262,6 +262,7 @@ module fox_game::barn {
     }
 
     fun claim_fox_from_pack(
+        foc_reg: &mut FoCRegistry,
         reg: &mut BarnRegistry,
         pack: &mut Pack,
         foc_id: ID,
@@ -269,8 +270,7 @@ module fox_game::barn {
         ctx: &mut TxContext
     ): u64 {
         assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
-        // TODO get alpha from foc_id
-        let alpha = token_helper::alpha_for_fox();
+        let alpha = alpha_for_fox_from_id(foc_reg, foc_id);
         assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
 
         let stake_value = get_fox_stake_value(pack, alpha, foc_id);
@@ -307,6 +307,7 @@ module fox_game::barn {
     fun add_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext): ID {
         let foc_id = object::id(&foc);
         let value = timestamp_now(reg, ctx);
+        let alpha = alpha_for_fox(&foc);
         let stake = Stake {
             id: object::new(ctx),
             item: foc,
@@ -314,7 +315,6 @@ module fox_game::barn {
             owner: sender(ctx),
         };
         let stake_id = object::id(&stake);
-        let alpha = token_helper::alpha_for_fox();
         if (!table::contains(&mut pack.items, alpha)) {
             table::add(&mut pack.items, alpha, vec::empty());
         };
@@ -465,7 +465,7 @@ module fox_game::barn {
             add_fox_to_pack(&mut barn_reg, &mut pack, item, test_scenario::ctx(scenario));
 
             assert!(table::contains(&pack.pack_indices, item_id), 1);
-            let alpha = alpha_for_fox();
+            let alpha = alpha_for_fox(&item);
 
             let item_out = remove_fox_from_pack(&mut pack, alpha, item_id, test_scenario::ctx(scenario));
             assert!(!table::contains(&pack.pack_indices, item_id), 1);
