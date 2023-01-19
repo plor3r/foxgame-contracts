@@ -20,7 +20,7 @@ module fox_game::fox {
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
     /// Action not authorized because the signer is not the owner of this module
-    const ENOT_AUTHORIZED: u64 = 1;
+    const ENOT_AUTHORIZED: u64 = 2;
     /// The collection minting is disabled
     const EMINTING_DISABLED: u64 = 3;
     /// All minted
