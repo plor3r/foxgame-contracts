@@ -25,9 +25,10 @@ module fox_game::barn {
     // FIXME
     const DAILY_EGG_RATE: u64 = 10000 * 1000000000;
     // chicken must have 2 days worth of $EGG to unstake or else it's too cold
-    const MINIMUM_TO_EXIT: u64 = 2 * 86400;
+    // FIXME
+    // const MINIMUM_TO_EXIT: u64 = 2 * 86400;
     // TEST
-    // const MINIMUM_TO_EXIT: u64 = 600;
+    const MINIMUM_TO_EXIT: u64 = 600;
     const ONE_DAY_IN_SECOND: u64 = 86400;
     // foxes take a 20% tax on all $EGG claimed
     const EGG_CLAIM_TAX_PERCENTAGE: u64 = 20;

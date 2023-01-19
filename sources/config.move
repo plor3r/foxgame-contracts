@@ -12,11 +12,13 @@ module fox_game::config {
     }
 
     public fun paid_tokens(): u64 {
-        100
+        // FIXME
+        20
     }
 
     public fun max_tokens(): u64 {
-        10000
+        // FIXME
+        100
     }
 
     public fun octas(): u64 {

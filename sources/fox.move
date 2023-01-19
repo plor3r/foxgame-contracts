@@ -13,7 +13,6 @@ module fox_game::fox {
     use fox_game::token_helper::{Self, FoCRegistry, FoxOrChicken};
     use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
     use fox_game::egg::{Self, EGG};
-    use std::vector;
     use sui::balance;
     use fox_game::config::TimeManagerCap;
 
@@ -174,25 +173,6 @@ module fox_game::fox {
             &mut global.pack,
             treasury_cap,
             tokens,
-            unstake,
-            ctx
-        );
-    }
-
-    public entry fun claim_one_from_barn_and_pack(
-        global: &mut Global,
-        treasury_cap: &mut TreasuryCap<EGG>,
-        token: ID,
-        unstake: bool,
-        ctx: &mut TxContext,
-    ) {
-        let token_id = vector::singleton<ID>(token);
-        barn::claim_many_from_barn_and_pack(
-            &mut global.barn_registry,
-            &mut global.barn,
-            &mut global.pack,
-            treasury_cap,
-            token_id,
             unstake,
             ctx
         );
