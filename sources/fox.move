@@ -77,11 +77,11 @@ module fox_game::fox {
     /// mint a fox or chicken
     public entry fun mint(
         global: &mut Global,
-        // treasury_cap: &mut TreasuryCap<EGG>,
+        treasury_cap: &mut TreasuryCap<EGG>,
         amount: u64,
         stake: bool,
         pay_sui: vector<Coin<SUI>>,
-        // pay_egg: vector<Coin<EGG>>,
+        pay_egg: vector<Coin<EGG>>,
         ctx: &mut TxContext,
     ) {
         assert_enabled(global);
@@ -92,13 +92,18 @@ module fox_game::fox {
         let receiver_addr = sender(ctx);
 
         if (token_supply < config::paid_tokens()) {
+            assert!(vec::length(&pay_sui) > 0, EINSUFFICIENT_SUI_BALANCE);
             assert!(token_supply + amount <= config::paid_tokens(), EALL_MINTED);
             let price = config::mint_price() * amount;
             let (paid, remainder) = merge_and_split(pay_sui, price, ctx);
             coin::put(&mut global.balance, paid);
             transfer(remainder, sender(ctx));
         } else {
-            transfer(merge(pay_sui, ctx), sender(ctx));
+            if (vec::length(&pay_sui) > 0) {
+                transfer(merge(pay_sui, ctx), sender(ctx));
+            } else {
+                vec::destroy_empty(pay_sui);
+            };
         };
         let id = object::new(ctx);
         let seed = hash(object::uid_to_bytes(&id));
@@ -118,16 +123,21 @@ module fox_game::fox {
             total_egg_cost = total_egg_cost + mint_cost(token_index);
             i = i + 1;
         };
-        // if (total_egg_cost > 0) {
-        //     // burn EGG
-        //     let total_egg = merge(pay_egg, ctx);
-        //     assert!(coin::value(&total_egg) >= total_egg_cost, EINSUFFICIENT_EGG_BALANCE);
-        //     let paid = coin::split(&mut total_egg, total_egg_cost, ctx);
-        //     egg::burn(treasury_cap, paid);
-        //     transfer(total_egg, sender(ctx));
-        // } else {
-        //     transfer(merge(pay_egg, ctx), sender(ctx));
-        // };
+        if (total_egg_cost > 0) {
+            assert!(vec::length(&pay_egg) > 0, EINSUFFICIENT_EGG_BALANCE);
+            // burn EGG
+            let total_egg = merge(pay_egg, ctx);
+            assert!(coin::value(&total_egg) >= total_egg_cost, EINSUFFICIENT_EGG_BALANCE);
+            let paid = coin::split(&mut total_egg, total_egg_cost, ctx);
+            egg::burn(treasury_cap, paid);
+            transfer(total_egg, sender(ctx));
+        } else {
+            if (vec::length(&pay_egg) > 0) {
+                transfer(merge(pay_egg, ctx), sender(ctx));
+            } else {
+                vec::destroy_empty(pay_egg);
+            };
+        };
 
         if (stake) {
             barn::stake_many_to_barn_and_pack(

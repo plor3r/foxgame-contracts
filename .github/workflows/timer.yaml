@@ -20,4 +20,4 @@ jobs:
           (sleep 1; echo y;sleep 1;echo;sleep 1;echo 0;) | ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
           ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
       - name: call set timer
-        run: ./sui client call --function set_timestamp --module fox --package 0x0f35059588c17224cc1ecafbd9797069fc97df8a --args 0xd83d68d55bb8b632b4c4c9f0a524f77a1255da96 0x2216ece9c14a8b16040a304fadf65a7033a38109 \"$(date +%s)\" --gas-budget 30000
+        run: ./sui client call --function set_timestamp --module fox --package 0x54b399071e3902b7f832695c4e0c5093b3adf1ec --args 0xbb1dcd2515748ca8d1727dcd3253cd142236da7e 0xa366a7aff2a4eee1a59b362707ce25e6f760d7f9 \"$(date +%s)\" --gas-budget 30000

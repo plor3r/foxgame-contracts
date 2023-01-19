@@ -32,9 +32,10 @@ module fox_game::config {
     }
 
     public fun mint_price(): u64 {
+        // FIXME
         // 1 * octas()
-        // 0.0099
-        9900000
+        // 0.00099
+        990000
     }
 
     public fun is_enabled(): bool {

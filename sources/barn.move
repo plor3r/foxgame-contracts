@@ -22,7 +22,8 @@ module fox_game::barn {
     // maximum alpha score for a fox
     const MAX_ALPHA: u8 = 8;
     // sheep earn 10 $EGG per day
-    const DAILY_EGG_RATE: u64 = 10 * 1000000000;
+    // FIXME
+    const DAILY_EGG_RATE: u64 = 10000 * 1000000000;
     // chicken must have 2 days worth of $EGG to unstake or else it's too cold
     const MINIMUM_TO_EXIT: u64 = 2 * 86400;
     // TEST
