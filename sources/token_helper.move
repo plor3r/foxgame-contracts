@@ -27,6 +27,8 @@ module fox_game::token_helper {
     /// FIXME
     const MAIN_URL: vector<u8> = b"https://wolfgameaptos.xyz/";
 
+    const ALPHAS: vector<u8> = vector[8, 7, 6, 5];
+
     /// Defines a Fox or Chicken attribute. Eg: `pattern: 'panda'`
     struct Attribute has store, copy, drop {
         name: String,
@@ -256,9 +258,11 @@ module fox_game::token_helper {
         let fc = generate_traits(reg);
         let attributes = get_attributes(&fc);
 
+        let alpha = *vec::borrow(&ALPHAS, (fc.alpha_index as u64));
+
         table::add(&mut reg.types, object::uid_to_inner(&id), fc.is_chicken);
         if (!fc.is_chicken) {
-            table::add(&mut reg.alphas, object::uid_to_inner(&id), fc.alpha_index);
+            table::add(&mut reg.alphas, object::uid_to_inner(&id), alpha);
         };
 
         emit(FoCBorn {
@@ -272,7 +276,7 @@ module fox_game::token_helper {
             id,
             index: reg.foc_born,
             is_chicken: fc.is_chicken,
-            alpha: fc.alpha_index,
+            alpha: alpha,
             url: img_url(reg.foc_born, fc.is_chicken),
             link: link_url(reg.foc_born, fc.is_chicken),
             attributes,
@@ -301,7 +305,11 @@ module fox_game::token_helper {
         vec::push_back(&mut attributes, Attribute { name: string::utf8(b"Feet"), value: to_string((fc.feet as u64)) });
         vec::push_back(
             &mut attributes,
-            Attribute { name: string::utf8(b"Alpha"), value: to_string((fc.alpha_index as u64)) }
+            Attribute {
+                name: string::utf8(b"Alpha"), value: to_string(
+                    (*vec::borrow(&ALPHAS, (fc.alpha_index as u64)) as u64)
+                )
+            }
         );
         attributes
     }

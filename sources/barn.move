@@ -77,7 +77,10 @@ module fox_game::barn {
 
     struct Pack has key, store {
         id: UID,
-        items: Table<u8, vector<Stake>>,
+        items: ObjectTable<u8, ObjectTable<u64, Stake>>,
+        // alpha -> index -> Stake
+        item_size: vector<u64>,
+        // size for each alpha
         pack_indices: Table<ID, u64>,
         // staked: Table<address, vector<ID>>, // address -> stake_id
     }
@@ -121,7 +124,8 @@ module fox_game::barn {
         emit(PackCreated { id: object::uid_to_inner(&id) });
         Pack {
             id,
-            items: table::new(ctx),
+            items: object_table::new(ctx),
+            item_size: vector[0, 0, 0, 0], // alpha is 5,6,7,8
             pack_indices: table::new(ctx),
             // staked: table::new(ctx),
         }
@@ -271,7 +275,7 @@ module fox_game::barn {
     ): u64 {
         assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
         let alpha = alpha_for_fox_from_id(foc_reg, foc_id);
-        assert!(table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
+        assert!(object_table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
 
         let stake_value = get_fox_stake_value(pack, alpha, foc_id);
         // Calculate portion of tokens based on Alpha
@@ -315,15 +319,17 @@ module fox_game::barn {
             owner: sender(ctx),
         };
         let stake_id = object::id(&stake);
-        if (!table::contains(&mut pack.items, alpha)) {
-            table::add(&mut pack.items, alpha, vec::empty());
+        if (!object_table::contains(&mut pack.items, alpha)) {
+            object_table::add(&mut pack.items, alpha, object_table::new(ctx));
         };
-        let pack_items = table::borrow_mut(&mut pack.items, alpha);
-        vec::push_back(pack_items, stake);
-
+        let pack_items = object_table::borrow_mut(&mut pack.items, alpha);
+        let cur = vec::borrow_mut(&mut pack.item_size, (alpha as u64) - 5);
+        object_table::add(pack_items, *cur, stake);
         // Store the location of the fox in the Pack
-        let token_index = vec::length(pack_items) - 1;
-        table::add(&mut pack.pack_indices, foc_id, token_index);
+        table::add(&mut pack.pack_indices, foc_id, *cur);
+
+        *cur = *cur + 1;
+
         emit(FoCStaked { id: foc_id, owner: sender(ctx), value });
         stake_id
     }
@@ -337,23 +343,25 @@ module fox_game::barn {
     }
 
     fun remove_fox_from_pack(pack: &mut Pack, alpha: u8, foc_id: ID, ctx: &mut TxContext): (FoxOrChicken, ID) {
-        let pack_items = table::borrow_mut(&mut pack.items, alpha);
+        let pack_items = object_table::borrow_mut(&mut pack.items, alpha);
         // get the index
         let stake_index = table::remove(&mut pack.pack_indices, foc_id);
+        let cur = vec::borrow_mut(&mut pack.item_size, (alpha as u64) - 5);
 
-        let last_stake_index = vec::length(pack_items) - 1;
+        let last_stake_index = *cur - 1;
+        let Stake { id, item, value: _, owner } = object_table::remove(pack_items, stake_index);
+        assert!(tx_context::sender(ctx) == owner, EINVALID_OWNER);
         if (stake_index != last_stake_index) {
-            let last_stake = vec::borrow(pack_items, last_stake_index);
+            let last_stake = object_table::remove(pack_items, last_stake_index);
             // update index for swapped token
             let last_foc_id = object::id(&last_stake.item);
             table::remove(&mut pack.pack_indices, last_foc_id);
             table::add(&mut pack.pack_indices, last_foc_id, stake_index);
-            // swap last token to current token location and then pop
-            vec::swap(pack_items, stake_index, last_stake_index);
+            // insert back last_stake
+            object_table::add(pack_items, stake_index, last_stake);
         };
+        *cur = *cur - 1;
 
-        let Stake { id, item, value: _, owner } = vec::pop_back(pack_items);
-        assert!(tx_context::sender(ctx) == owner, EINVALID_OWNER);
         let stake_id = object::uid_to_inner(&id);
         object::delete(id);
         (item, stake_id)
@@ -370,16 +378,16 @@ module fox_game::barn {
     }
 
     fun get_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID): u64 {
-        let items = table::borrow(&pack.items, alpha);
+        let items = object_table::borrow(&pack.items, alpha);
         let stake_index = *table::borrow(&pack.pack_indices, foc_id);
-        let stake = vec::borrow(items, stake_index);
+        let stake = object_table::borrow(items, stake_index);
         stake.value
     }
 
     fun set_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID, new_value: u64) {
-        let items = table::borrow_mut(&mut pack.items, alpha);
+        let items = object_table::borrow_mut(&mut pack.items, alpha);
         let stake_index = *table::borrow(&pack.pack_indices, foc_id);
-        let stake = vec::borrow_mut(items, stake_index);
+        let stake = object_table::borrow_mut(items, stake_index);
         stake.value = new_value;
     }
 
@@ -394,13 +402,13 @@ module fox_game::barn {
         // loop through each bucket of foxes with the same alpha score
         let i = MAX_ALPHA - 3;
         while (i <= MAX_ALPHA) {
-            let foxes = table::borrow(&pack.items, i);
-            let foxes_length = vec::length(foxes);
+            let foxes = object_table::borrow(&pack.items, i);
+            let foxes_length = *vec::borrow_mut(&mut pack.item_size, (i as u64) - 5);
             cumulative = cumulative + foxes_length * (i as u64);
             // if the value is not inside of that bucket, keep going
             if (bucket < cumulative) {
                 // get the address of a random fox with that alpha score
-                return vec::borrow(foxes, random::rand_u64_with_seed(seed) % foxes_length).owner
+                return object_table::borrow(foxes, random::rand_u64_with_seed(seed) % foxes_length).owner
             };
             i = i + 1;
         };
