@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: install sui
-        run: curl -L https://github.com/MystenLabs/sui/releases/download/devnet-0.21.0/sui > sui
+        run: curl -L https://github.com/MystenLabs/sui/releases/download/devnet-0.22.0/sui > sui
       - run: chmod +x sui
       - name: import address
         run: ./sui keytool import "${{ secrets.MNEMONIC }}" ed25519
