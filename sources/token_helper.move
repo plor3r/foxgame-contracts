@@ -607,15 +607,15 @@ module fox_game::token_helper {
         let shift = if (is_chicken) 0 else 9;
         Traits {
             is_chicken,
-            fur: select_trait(reg, *vec::borrow(&seed, 1), *vec::borrow(&seed, 1), 0 + shift),
-            head: select_trait(reg, *vec::borrow(&seed, 2), *vec::borrow(&seed, 1), 1 + shift),
-            ears: select_trait(reg, *vec::borrow(&seed, 3), *vec::borrow(&seed, 1), 2 + shift),
-            eyes: select_trait(reg, *vec::borrow(&seed, 4), *vec::borrow(&seed, 1), 3 + shift),
-            nose: select_trait(reg, *vec::borrow(&seed, 5), *vec::borrow(&seed, 1), 4 + shift),
-            mouth: select_trait(reg, *vec::borrow(&seed, 6), *vec::borrow(&seed, 1), 5 + shift),
-            neck: select_trait(reg, *vec::borrow(&seed, 7), *vec::borrow(&seed, 1), 6 + shift),
-            feet: select_trait(reg, *vec::borrow(&seed, 8), *vec::borrow(&seed, 1), 7 + shift),
-            alpha_index: select_trait(reg, *vec::borrow(&seed, 9), *vec::borrow(&seed, 1), 8 + shift),
+            fur: select_trait(reg, *vec::borrow(&seed, 1), *vec::borrow(&seed, 10), 0 + shift),
+            head: select_trait(reg, *vec::borrow(&seed, 2), *vec::borrow(&seed, 11), 1 + shift),
+            ears: select_trait(reg, *vec::borrow(&seed, 3), *vec::borrow(&seed, 12), 2 + shift),
+            eyes: select_trait(reg, *vec::borrow(&seed, 4), *vec::borrow(&seed, 13), 3 + shift),
+            nose: select_trait(reg, *vec::borrow(&seed, 5), *vec::borrow(&seed, 14), 4 + shift),
+            mouth: select_trait(reg, *vec::borrow(&seed, 6), *vec::borrow(&seed, 15), 5 + shift),
+            neck: select_trait(reg, *vec::borrow(&seed, 7), *vec::borrow(&seed, 16), 6 + shift),
+            feet: select_trait(reg, *vec::borrow(&seed, 8), *vec::borrow(&seed, 17), 7 + shift),
+            alpha_index: select_trait(reg, *vec::borrow(&seed, 9), *vec::borrow(&seed, 18), 8 + shift),
         }
     }
 
