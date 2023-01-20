@@ -2,7 +2,7 @@
 set -x
 
 sui move build
-sui client publish . --gas-budget 30000
+sui client publish . --gas-budget 300000
 
 export fox_game=0xd67be3a2ebf0cd2e1ea188d244929f595c036fa5
 export global=0x08e019b5b3f5f10e961936792a0135d49a831b47
