@@ -13,12 +13,12 @@ module fox_game::config {
 
     public fun paid_tokens(): u64 {
         // FIXME
-        20
+        100
     }
 
     public fun max_tokens(): u64 {
         // FIXME
-        100
+        500
     }
 
     public fun octas(): u64 {
@@ -30,14 +30,14 @@ module fox_game::config {
     }
 
     public fun target_max_tokens(): u64 {
-        50000
+        500
     }
 
     public fun mint_price(): u64 {
         // FIXME
         // 1 * octas()
-        // 0.00099
-        990000
+        // 0.0099
+        9900000
     }
 
     public fun is_enabled(): bool {
