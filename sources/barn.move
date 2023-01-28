@@ -1,6 +1,6 @@
 module fox_game::barn {
     use sui::object::{Self, ID, UID};
-    use sui::tx_context::{Self, TxContext, sender};
+    use sui::tx_context::{TxContext, sender};
     use sui::transfer;
     use sui::table::{Self, Table};
     use sui::object_table::{Self, ObjectTable};
@@ -337,7 +337,7 @@ module fox_game::barn {
     fun remove_chicken_from_barn(barn: &mut Barn, foc_id: ID, ctx: &mut TxContext): (FoxOrChicken, ID) {
         let Stake { id, item, value: _, owner } = object_table::remove(&mut barn.items, foc_id);
         let stake_id = object::uid_to_inner(&id);
-        assert!(tx_context::sender(ctx) == owner, EINVALID_OWNER);
+        assert!(sender(ctx) == owner, EINVALID_OWNER);
         object::delete(id);
         (item, stake_id)
     }
@@ -350,7 +350,7 @@ module fox_game::barn {
 
         let last_stake_index = *cur - 1;
         let Stake { id, item, value: _, owner } = object_table::remove(pack_items, stake_index);
-        assert!(tx_context::sender(ctx) == owner, EINVALID_OWNER);
+        assert!(sender(ctx) == owner, EINVALID_OWNER);
         if (stake_index != last_stake_index) {
             let last_stake = object_table::remove(pack_items, last_stake_index);
             // update index for swapped token

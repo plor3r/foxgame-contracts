@@ -4,19 +4,15 @@ set -x
 sui move build
 sui client publish . --gas-budget 300000
 
-export fox_game=0xd67be3a2ebf0cd2e1ea188d244929f595c036fa5
-export global=0x08e019b5b3f5f10e961936792a0135d49a831b47
-export egg_treasury=0xeb29588317182541bbae5268a89a69bc3bc41468
-sui client call --function mint --module fox --package ${fox_game} --args ${global} \"2\" false \[\] --gas-budget 100000
-sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"2\" false \[\] --gas-budget 100000
+export fox_game=0x59a85fbef4bc17cd73f8ff89d227fdcd6226c885
+export global=0xe4ffefc480e20129ff7893d7fd550b17fda0ab0f
+export egg_treasury=0x17db4feb4652b8b5ce9ebf6dc7d29463b08e234e
+export time_cap=0xe364474bd00b7544b9393f0a2b0af2dbea143fd3
 
-export item=0xa80bab2d68b2d70d1b1657de13333405e5a1f26f
+sui client call --function set_timestamp --module fox --package ${fox_game} --args ${time_cap} ${global} \"$(date +%s)\" --gas-budget 30000
+sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"1\" false \[0x3cd2bb1e03326e5141203cc008e6d2eb44a0df05\] \[\] --gas-budget 100000
+
+export item=0x84fe8e597bcb9387b2911b5ef39b90bb111e71a2
 
 sui client call --function add_many_to_barn_and_pack --module fox --package ${fox_game} --args ${global} \[${item}\] --gas-budget 100000
-sui client call --function claim_many_from_barn_and_pack --module fox --package ${fox_game} --args ${global} '["${item}"]' false --gas-budget 100000
-sui client call --function claim_one_from_barn_and_pack --module fox --package ${fox_game} --args ${global} ${item} false --gas-budget 100000
-
-
-sui client call --function add_many_to_barn_and_pack --module fox --package ${fox_game} --args ${global} \[0x8ec9a85831db6112017db5c1954725a2e3183fe0,0x945f7f5b733a61df06aae3298f445c13e4db0944\] --gas-budget 100000
-
-sui client call --function claim_many_from_barn_and_pack --module fox --package ${fox_game} --args ${global} '["0x8ec9a85831db6112017db5c1954725a2e3183fe0","0x945f7f5b733a61df06aae3298f445c13e4db0944"]' --gas-budget 100000
+sui client call --function claim_many_from_barn_and_pack --module fox --package ${fox_game} --args ${global} ${egg_treasury} '["${item}"]' false --gas-budget 100000
