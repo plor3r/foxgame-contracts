@@ -17,9 +17,9 @@ jobs:
         run: ./sui keytool import "${{ secrets.MNEMONIC }}" ed25519
       - name: switch address and env
         run: |
-          ./sui client new-env --alias testnet --rpc https://fullnode.testnet.sui.io:443
-          ./sui client switch --env testnet
           (sleep 1; echo y;sleep 1;echo;sleep 1;echo 0;) | ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
           ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
+          ./sui client new-env --alias testnet --rpc https://fullnode.testnet.sui.io:443
+          ./sui client switch --env testnet
       - name: call set timer
         run: ./sui client call --function set_timestamp --module fox --package 0xb327a30220f67ea1f653a45b8ecee142bb3e48ac --args 0x51c610db76f7d0047d591418c0c74a4eee0cad72 0x1652fe0bc58dae6133156662c0680530640075ca \"$(date +%s)\" --gas-budget 30000
