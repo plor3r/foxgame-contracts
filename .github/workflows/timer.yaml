@@ -17,8 +17,8 @@ jobs:
         run: ./sui keytool import "${{ secrets.MNEMONIC }}" ed25519
       - name: switch address and env
         run: |
-          sui client new-env --alias testnet --rpc https://fullnode.testnet.sui.io:443
-          sui client switch --env testnet
+          ./sui client new-env --alias testnet --rpc https://fullnode.testnet.sui.io:443
+          ./sui client switch --env testnet
           (sleep 1; echo y;sleep 1;echo;sleep 1;echo 0;) | ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
           ./sui client switch --address 0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa
       - name: call set timer
