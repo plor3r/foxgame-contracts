@@ -19,8 +19,8 @@ module fox_game::egg {
             option::none(),
             ctx
         );
-        transfer::freeze_object(metadata);
-        transfer::share_object(treasury_cap)
+        transfer::public_freeze_object(metadata);
+        transfer::public_share_object(treasury_cap)
     }
 
     /// Manager can mint new coins

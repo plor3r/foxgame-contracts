@@ -3,7 +3,7 @@ module fox_game::fox {
     use sui::coin::{Self, Coin, TreasuryCap};
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{TxContext, sender};
-    use sui::transfer::{transfer, share_object};
+    use sui::transfer::{share_object, public_transfer};
     use std::vector as vec;
     use sui::pay;
     use sui::balance::Balance;
@@ -41,7 +41,7 @@ module fox_game::fox {
     }
 
     fun init(ctx: &mut TxContext) {
-        transfer(token_helper::init_foc_manage_cap(ctx), sender(ctx));
+        public_transfer(token_helper::init_foc_manage_cap(ctx), sender(ctx));
         share_object(Global {
             id: object::new(ctx),
             minting_enabled: true,
@@ -51,7 +51,7 @@ module fox_game::fox {
             barn: barn::init_barn(ctx),
             foc_registry: token_helper::init_foc_registry(ctx),
         });
-        transfer(config::init_time_manager_cap(ctx), @0xa3e46ec682bb5082849c240d2f2d20b0f6e054aa);
+        public_transfer(config::init_time_manager_cap(ctx), @fox_timer);
     }
 
     public fun mint_cost(token_index: u64): u64 {
@@ -96,10 +96,10 @@ module fox_game::fox {
             let price = config::mint_price() * amount;
             let (paid, remainder) = merge_and_split(pay_sui, price, ctx);
             coin::put(&mut global.balance, paid);
-            transfer(remainder, sender(ctx));
+            public_transfer(remainder, sender(ctx));
         } else {
             if (vec::length(&pay_sui) > 0) {
-                transfer(merge(pay_sui, ctx), sender(ctx));
+                public_transfer(merge(pay_sui, ctx), sender(ctx));
             } else {
                 vec::destroy_empty(pay_sui);
             };
@@ -114,7 +114,7 @@ module fox_game::fox {
             let recipient: address = select_recipient(&mut global.pack, receiver_addr, seed, token_index);
             let token = token_helper::create_foc(&mut global.foc_registry, ctx);
             if (!stake || recipient != receiver_addr) {
-                transfer(token, receiver_addr);
+                public_transfer(token, receiver_addr);
             } else {
                 vec::push_back(&mut tokens, token);
             };
@@ -129,10 +129,10 @@ module fox_game::fox {
             assert!(coin::value(&total_egg) >= total_egg_cost, EINSUFFICIENT_EGG_BALANCE);
             let paid = coin::split(&mut total_egg, total_egg_cost, ctx);
             egg::burn(treasury_cap, paid);
-            transfer(total_egg, sender(ctx));
+            public_transfer(total_egg, sender(ctx));
         } else {
             if (vec::length(&pay_egg) > 0) {
-                transfer(merge(pay_egg, ctx), sender(ctx));
+                public_transfer(merge(pay_egg, ctx), sender(ctx));
             } else {
                 vec::destroy_empty(pay_egg);
             };

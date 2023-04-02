@@ -1,10 +1,14 @@
 [package]
 name = "fox_game"
 version = "0.0.1"
+published-at = "0xbf23ecf0bc3d3d8fee12b26d505e60db33a8b8aa8f35074cfcd7e0da30ac6b5c"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "devnet" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
 
 [addresses]
-fox_game =  "0x0"
-sui =  "0000000000000000000000000000000000000002"
+fox_game = "0x0"
+fox_timer = "0x2664895f70feb4561b2be30ce2766692a8afa38a68e50783f30c795433ff856e"
+sui = "0000000000000000000000000000000000000000000000000000000000000002"
+sui_system = "0000000000000000000000000000000000000000000000000000000000000003"
+#sui_clock = "0000000000000000000000000000000000000000000000000000000000000006"

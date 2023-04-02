@@ -1,7 +1,7 @@
 module fox_game::barn {
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{TxContext, sender};
-    use sui::transfer;
+    use sui::transfer::{public_transfer};
     use sui::table::{Self, Table};
     use sui::object_table::{Self, ObjectTable};
     use sui::event::emit;
@@ -252,7 +252,7 @@ module fox_game::barn {
             reg.total_chicken_staked = reg.total_chicken_staked - 1;
             let (item, stake_id) = remove_chicken_from_barn(barn, foc_id, ctx);
             remove_staked(&mut barn.id, sender(ctx), stake_id);
-            transfer::transfer(item, sender(ctx));
+            public_transfer(item, sender(ctx));
         } else {
             // percentage tax to staked foxes
             pay_fox_tax(reg, owed * EGG_CLAIM_TAX_PERCENTAGE / 100);
@@ -285,7 +285,7 @@ module fox_game::barn {
             reg.total_alpha_staked = reg.total_alpha_staked - (alpha as u64);
             let (item, stake_id) = remove_fox_from_pack(pack, alpha, foc_id, ctx);
             remove_staked(&mut pack.id, sender(ctx), stake_id);
-            transfer::transfer(item, sender(ctx));
+            public_transfer(item, sender(ctx));
         } else {
             set_fox_stake_value(pack, alpha, foc_id, reg.egg_per_alpha);
         };
@@ -453,6 +453,7 @@ module fox_game::barn {
     #[test]
     fun test_remove_fox_from_pack() {
         use sui::test_scenario;
+        use sui::transfer;
 
         let dummy = @0xcafe;
         let admin = @0xBABE;
@@ -478,7 +479,7 @@ module fox_game::barn {
             let item_out = remove_fox_from_pack(&mut pack, alpha, item_id, test_scenario::ctx(scenario));
             assert!(!table::contains(&pack.pack_indices, item_id), 1);
 
-            transfer::transfer(item_out, dummy);
+            public_transfer(item_out, dummy);
             test_scenario::return_shared(foc_registry);
             test_scenario::return_shared(pack);
         };
