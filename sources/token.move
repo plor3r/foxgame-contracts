@@ -7,6 +7,8 @@ module fox_game::token {
     use std::vector as vec;
     use std::hash::sha3_256 as hash;
     use std::option::{Self, Option};
+    use sui::display::{Self, Display};
+    use sui::package::Publisher;
 
     use fox_game::base64;
     use smartinscription::movescription::Movescription;
@@ -102,6 +104,24 @@ module fox_game::token {
 
     public(friend) fun init_foc_manage_cap(ctx: &mut TxContext): FoCManagerCap {
         FoCManagerCap { id: object::new(ctx) }
+    }
+
+    public(friend) fun init_display(publisher: &Publisher, ctx: &mut TxContext): Display<FoxOrChicken> {
+        let keys = vector[
+            std::string::utf8(b"name"),
+            std::string::utf8(b"ID"),
+            std::string::utf8(b"image_url"),
+        ];
+        let values = vector[
+            std::string::utf8(b"Fox Game #{index}"),
+            std::string::utf8(b"{index}"),
+            std::string::utf8(b"{url}"),
+        ];
+        let display = display::new_with_fields<FoxOrChicken>(
+            publisher, keys, values, ctx
+        );
+        display::update_version(&mut display);
+        display
     }
 
     public(friend) fun init_foc_registry(ctx: &mut TxContext): FoCRegistry {

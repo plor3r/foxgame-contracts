@@ -21,7 +21,7 @@ const inscription_id = '0x0d8fd7b5903736ac7b564ec90d31efa4359452370f38f18f41ba27
 
 async function main() {
   const txb = new TransactionBlock();
-  let amount = 10;
+  let amount = 1;
   // == deposit
   const [move] = txb.moveCall({
     target: `${MovescriptionPackageId}::movescription::do_split`,
@@ -38,7 +38,7 @@ async function main() {
     ],
   });
 
-  txb.setGasBudget(6_000_000_000)
+  txb.setGasBudget(2_000_000_000)
   txb.setSender(keypair.getPublicKey().toSuiAddress());
   try {
     const result = await client.signAndExecuteTransactionBlock({

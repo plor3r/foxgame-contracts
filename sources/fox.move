@@ -9,6 +9,7 @@ module fox_game::fox {
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{TxContext, sender};
     use sui::transfer::{public_share_object, public_transfer};
+    use sui::package;
 
     use fox_game::config;
     use fox_game::token::{Self, FoCRegistry, FoxOrChicken};
@@ -24,6 +25,9 @@ module fox_game::fox {
     const EINVALID_MINTING: u64 = 3;
     const EInvalidMovescription: u64 = 4;
 
+    /// One-Time-Witness for the module.
+    struct FOX has drop {}
+
     struct Global has key, store {
         id: UID,
         minting_enabled: bool,
@@ -34,8 +38,9 @@ module fox_game::fox {
         foc_registry: FoCRegistry,
     }
 
-    fun init(ctx: &mut TxContext) {
-        public_transfer(token::init_foc_manage_cap(ctx), sender(ctx));
+    fun init(otw: FOX, ctx: &mut TxContext) {
+        let deployer = sender(ctx);
+        public_transfer(token::init_foc_manage_cap(ctx), deployer);
         public_share_object(Global {
             id: object::new(ctx),
             minting_enabled: true,
@@ -45,6 +50,11 @@ module fox_game::fox {
             barn: barn::init_barn(ctx),
             foc_registry: token::init_foc_registry(ctx),
         });
+
+        let publisher = package::claim(otw, ctx);
+        let display = token::init_display(&publisher, ctx);
+        public_transfer(publisher, deployer);
+        public_transfer(display, deployer);
     }
 
     // Assertations
