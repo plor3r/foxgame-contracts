@@ -7,11 +7,12 @@ module fox_game::barn {
     use sui::event::emit;
     use sui::coin::TreasuryCap;
     use sui::dynamic_field as dof;
+    use sui::clock::{Self, Clock};
 
     use std::vector as vec;
     use std::hash::sha3_256 as hash;
 
-    use fox_game::token_helper::{Self, FoxOrChicken, FoCRegistry, alpha_for_fox, alpha_for_fox_from_id};
+    use fox_game::token::{Self, FoxOrChicken, FoCRegistry, alpha_for_fox, alpha_for_fox_from_id};
     use fox_game::random;
     use fox_game::egg::{Self, EGG};
 
@@ -36,12 +37,10 @@ module fox_game::barn {
     //
     // Errors
     //
-    const EALPHA_NOT_STAKED: u64 = 1;
-    const ENOT_IN_PACK_OR_BARN: u64 = 2;
-    const EINVALID_CALLER: u64 = 3;
+    const ENOT_IN_PACK_OR_BARN: u64 = 1;
     /// For when someone tries to unstake without ownership.
-    const EINVALID_OWNER: u64 = 4;
-    const ESTILL_COLD: u64 = 5;
+    const EINVALID_OWNER: u64 = 2;
+    const ESTILL_COLD: u64 = 3;
 
     struct BarnRegistry has key, store {
         id: UID,
@@ -57,7 +56,7 @@ module fox_game::barn {
         unaccounted_rewards: u64,
         // amount of $EGG due for each alpha point staked
         egg_per_alpha: u64,
-        // fake_timestamp
+        // timestamp
         timestamp: u64,
     }
 
@@ -163,17 +162,18 @@ module fox_game::barn {
         reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
+        clock: &Clock,
         tokens: vector<FoxOrChicken>,
         ctx: &mut TxContext,
     ) {
         let i = vec::length<FoxOrChicken>(&tokens);
         while (i > 0) {
-            let token = vec::pop_back(&mut tokens);
-            if (token_helper::is_chicken(&token)) {
-                update_earnings(reg, ctx);
-                stake_chicken_to_barn(reg, barn, token, ctx);
+            let the_token = vec::pop_back(&mut tokens);
+            if (token::is_chicken(&the_token)) {
+                update_earnings(reg, clock);
+                stake_chicken_to_barn(reg, barn, clock, the_token, ctx);
             } else {
-                stake_fox_to_pack(reg, pack, token, ctx);
+                stake_fox_to_pack(reg, pack, clock, the_token, ctx);
             };
             i = i - 1;
         };
@@ -186,17 +186,18 @@ module fox_game::barn {
         barn: &mut Barn,
         pack: &mut Pack,
         treasury_cap: &mut TreasuryCap<EGG>,
+        clock: &Clock,
         tokens: vector<ID>,
         unstake: bool,
         ctx: &mut TxContext,
     ) {
-        update_earnings(reg, ctx);
+        update_earnings(reg, clock);
         let i = vec::length<ID>(&tokens);
         let owed: u64 = 0;
         while (i > 0) {
             let token_id = vec::pop_back(&mut tokens);
-            if (token_helper::is_chicken_from_id(foc_reg, token_id)) {
-                owed = owed + claim_chicken_from_barn(reg, barn, token_id, unstake, ctx);
+            if (token::is_chicken_from_id(foc_reg, token_id)) {
+                owed = owed + claim_chicken_from_barn(reg, barn, clock, token_id, unstake, ctx);
             } else {
                 owed = owed + claim_fox_from_pack(foc_reg, reg, pack, token_id, unstake, ctx);
             };
@@ -207,29 +208,43 @@ module fox_game::barn {
         vec::destroy_empty(tokens)
     }
 
-    fun stake_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext) {
+    fun stake_chicken_to_barn(
+        reg: &mut BarnRegistry,
+        barn: &mut Barn,
+        clock: &Clock,
+        item: FoxOrChicken,
+        ctx: &mut TxContext
+    ) {
         reg.total_chicken_staked = reg.total_chicken_staked + 1;
-        let stake_id = add_chicken_to_barn(reg, barn, item, ctx);
+        let stake_id = add_chicken_to_barn(barn, clock, item, ctx);
         record_staked(&mut barn.id, sender(ctx), stake_id);
     }
 
-    fun stake_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, item: FoxOrChicken, ctx: &mut TxContext) {
+    fun stake_fox_to_pack(
+        reg: &mut BarnRegistry,
+        pack: &mut Pack,
+        clock: &Clock,
+        item: FoxOrChicken,
+        ctx: &mut TxContext
+    ) {
         let alpha = alpha_for_fox(&item);
         reg.total_alpha_staked = reg.total_alpha_staked + (alpha as u64);
-        let stake_id = add_fox_to_pack(reg, pack, item, ctx);
+        let stake_id = add_fox_to_pack(pack, clock, item, ctx);
         record_staked(&mut pack.id, sender(ctx), stake_id);
     }
 
+    #[lint_allow(self_transfer)]
     fun claim_chicken_from_barn(
         reg: &mut BarnRegistry,
         barn: &mut Barn,
+        clock: &Clock,
         foc_id: ID,
         unstake: bool,
         ctx: &mut TxContext
     ): u64 {
         assert!(object_table::contains(&barn.items, foc_id), ENOT_IN_PACK_OR_BARN);
         let stake_time = get_chicken_stake_value(barn, foc_id);
-        let timenow = timestamp_now(reg, ctx);
+        let timenow = timestamp_now(clock);
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
         let owed: u64;
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
@@ -265,13 +280,14 @@ module fox_game::barn {
         owed
     }
 
+    #[lint_allow(self_transfer)]
     fun claim_fox_from_pack(
         foc_reg: &mut FoCRegistry,
         reg: &mut BarnRegistry,
         pack: &mut Pack,
         foc_id: ID,
         unstake: bool,
-        ctx: &mut TxContext
+        ctx: &TxContext
     ): u64 {
         assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
         let alpha = alpha_for_fox_from_id(foc_reg, foc_id);
@@ -293,9 +309,14 @@ module fox_game::barn {
         owed
     }
 
-    fun add_chicken_to_barn(reg: &mut BarnRegistry, barn: &mut Barn, item: FoxOrChicken, ctx: &mut TxContext): ID {
+    fun add_chicken_to_barn(
+        barn: &mut Barn,
+        clock: &Clock,
+        item: FoxOrChicken,
+        ctx: &mut TxContext
+    ): ID {
         let foc_id = object::id(&item);
-        let value = timestamp_now(reg, ctx);
+        let value = timestamp_now(clock);
         let stake = Stake {
             id: object::new(ctx),
             item,
@@ -308,9 +329,9 @@ module fox_game::barn {
         stake_id
     }
 
-    fun add_fox_to_pack(reg: &mut BarnRegistry, pack: &mut Pack, foc: FoxOrChicken, ctx: &mut TxContext): ID {
+    fun add_fox_to_pack(pack: &mut Pack, clock: &Clock, foc: FoxOrChicken, ctx: &mut TxContext): ID {
         let foc_id = object::id(&foc);
-        let value = timestamp_now(reg, ctx);
+        let value = timestamp_now(clock);
         let alpha = alpha_for_fox(&foc);
         let stake = Stake {
             id: object::new(ctx),
@@ -319,7 +340,7 @@ module fox_game::barn {
             owner: sender(ctx),
         };
         let stake_id = object::id(&stake);
-        if (!object_table::contains(&mut pack.items, alpha)) {
+        if (!object_table::contains(&pack.items, alpha)) {
             object_table::add(&mut pack.items, alpha, object_table::new(ctx));
         };
         let pack_items = object_table::borrow_mut(&mut pack.items, alpha);
@@ -334,7 +355,7 @@ module fox_game::barn {
         stake_id
     }
 
-    fun remove_chicken_from_barn(barn: &mut Barn, foc_id: ID, ctx: &mut TxContext): (FoxOrChicken, ID) {
+    fun remove_chicken_from_barn(barn: &mut Barn, foc_id: ID, ctx: &TxContext): (FoxOrChicken, ID) {
         let Stake { id, item, value: _, owner } = object_table::remove(&mut barn.items, foc_id);
         let stake_id = object::uid_to_inner(&id);
         assert!(sender(ctx) == owner, EINVALID_OWNER);
@@ -342,7 +363,7 @@ module fox_game::barn {
         (item, stake_id)
     }
 
-    fun remove_fox_from_pack(pack: &mut Pack, alpha: u8, foc_id: ID, ctx: &mut TxContext): (FoxOrChicken, ID) {
+    fun remove_fox_from_pack(pack: &mut Pack, alpha: u8, foc_id: ID, ctx: &TxContext): (FoxOrChicken, ID) {
         let pack_items = object_table::borrow_mut(&mut pack.items, alpha);
         // get the index
         let stake_index = table::remove(&mut pack.pack_indices, foc_id);
@@ -367,7 +388,7 @@ module fox_game::barn {
         (item, stake_id)
     }
 
-    fun get_chicken_stake_value(barn: &mut Barn, foc_id: ID): u64 {
+    fun get_chicken_stake_value(barn: &Barn, foc_id: ID): u64 {
         let stake = object_table::borrow(&barn.items, foc_id);
         stake.value
     }
@@ -377,7 +398,7 @@ module fox_game::barn {
         stake.value = new_value;
     }
 
-    fun get_fox_stake_value(pack: &mut Pack, alpha: u8, foc_id: ID): u64 {
+    fun get_fox_stake_value(pack: &Pack, alpha: u8, foc_id: ID): u64 {
         let items = object_table::borrow(&pack.items, alpha);
         let stake_index = *table::borrow(&pack.pack_indices, foc_id);
         let stake = object_table::borrow(items, stake_index);
@@ -418,8 +439,8 @@ module fox_game::barn {
     // tracks $EGG earnings to ensure it stops once 1.4 million is eclipsed
     // FIXME use timestamp instead of epoch once sui team has supported timestamp
     // currently epoch will be update about every 24 hours,
-    fun update_earnings(reg: &mut BarnRegistry, ctx: &mut TxContext) {
-        let timenow = timestamp_now(reg, ctx);
+    fun update_earnings(reg: &mut BarnRegistry, clock: &Clock) {
+        let timenow = timestamp_now(clock);
         if (reg.total_egg_earned < MAXIMUM_GLOBAL_EGG) {
             reg.total_egg_earned = reg.total_egg_earned +
                 (timenow - reg.last_claim_timestamp)
@@ -428,12 +449,8 @@ module fox_game::barn {
         };
     }
 
-    public(friend) fun set_timestamp(reg: &mut BarnRegistry, current: u64, _ctx: &mut TxContext) {
-        reg.timestamp = current;
-    }
-
-    fun timestamp_now(reg: &mut BarnRegistry, _ctx: &mut TxContext): u64 {
-        reg.timestamp
+    fun timestamp_now(clock: &Clock): u64 {
+        clock::timestamp_ms(clock)
     }
 
     // add $WOOL to claimable pot for the Pack
@@ -454,29 +471,33 @@ module fox_game::barn {
     fun test_remove_fox_from_pack() {
         use sui::test_scenario;
         use sui::transfer;
+        use sui::clock::{Self, Clock};
 
         let dummy = @0xcafe;
         let admin = @0xBABE;
 
         let scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
+        let ctx = test_scenario::ctx(scenario);
+        clock::create_for_testing(ctx);
         {
-            transfer::share_object(token_helper::init_foc_registry(test_scenario::ctx(scenario)));
-            transfer::share_object(init_pack(test_scenario::ctx(scenario)));
+            transfer::share_object(token::init_foc_registry(ctx));
+            transfer::share_object(init_pack(ctx));
         };
         test_scenario::next_tx(scenario, dummy);
         {
+            let clock = test_scenario::take_shared<Clock>(&scenario_val);
+            clock::increment_for_testing(&mut clock, 20);
             let foc_registry = test_scenario::take_shared<FoCRegistry>(scenario);
-            let item = token_helper::create_foc(&mut foc_registry, test_scenario::ctx(scenario));
+            let item = token::create_foc(&mut foc_registry, ctx);
             let item_id = object::id(&item);
             let pack = test_scenario::take_shared<Pack>(scenario);
-            let barn_reg = init_barn_registry(test_scenario::ctx(scenario));
-            add_fox_to_pack(&mut barn_reg, &mut pack, item, test_scenario::ctx(scenario));
+            add_fox_to_pack(&mut pack, &clock, item, ctx);
 
             assert!(table::contains(&pack.pack_indices, item_id), 1);
             let alpha = alpha_for_fox(&item);
 
-            let item_out = remove_fox_from_pack(&mut pack, alpha, item_id, test_scenario::ctx(scenario));
+            let item_out = remove_fox_from_pack(&mut pack, alpha, item_id, ctx);
             assert!(!table::contains(&pack.pack_indices, item_id), 1);
 
             public_transfer(item_out, dummy);

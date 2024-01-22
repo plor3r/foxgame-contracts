@@ -1,16 +1,15 @@
 #!/bin/bash
 set -x
 
-sui move build
-sui client publish . --gas-budget 300000
+sui move build --skip-fetch-latest-git-deps
+sui client publish . --gas-budget 2000000000
 
-export fox_game=0x59a85fbef4bc17cd73f8ff89d227fdcd6226c885
-export global=0xe4ffefc480e20129ff7893d7fd550b17fda0ab0f
-export egg_treasury=0x17db4feb4652b8b5ce9ebf6dc7d29463b08e234e
-export time_cap=0xe364474bd00b7544b9393f0a2b0af2dbea143fd3
+export fox_game=0xf825805fcdfa0e31acd55a393a5567c60eabcefeabf9049aa137156d6af6898b
+export global=0x164dc95f9e781f74c0b26bfc5c83a32085667928a927168c9d462edc5716ebfd
+export egg_treasury=0x8b6f8740d78d0661811bd40f5f088ba6b6a5603cbb07048aca109d3d4b918b41
+export clock=0x0000000000000000000000000000000000000000000000000000000000000006
 
-sui client call --function set_timestamp --module fox --package ${fox_game} --args ${time_cap} ${global} \"$(date +%s)\" --gas-budget 30000
-sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} \"1\" false \[0x3cd2bb1e03326e5141203cc008e6d2eb44a0df05\] \[\] --gas-budget 100000
+sui client call --function mint --module fox --package ${fox_game} --args ${global} ${egg_treasury} ${clock} \"1\" false \[0x07bb583f727e743b577ae1190c02eaeec3c08eba57732cf50491ad90b1324679\] \[\] --gas-budget 100000
 
 export item=0x84fe8e597bcb9387b2911b5ef39b90bb111e71a2
 

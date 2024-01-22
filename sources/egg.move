@@ -9,6 +9,7 @@ module fox_game::egg {
 
     struct EGG has drop {}
 
+    #[lint_allow(share_owned)]
     fun init(witness: EGG, ctx: &mut TxContext) {
         let (treasury_cap, metadata) = coin::create_currency<EGG>(
             witness,
@@ -20,7 +21,7 @@ module fox_game::egg {
             ctx
         );
         transfer::public_freeze_object(metadata);
-        transfer::public_share_object(treasury_cap)
+        transfer::public_share_object(treasury_cap);
     }
 
     /// Manager can mint new coins

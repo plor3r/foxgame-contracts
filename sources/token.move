@@ -1,5 +1,5 @@
-module fox_game::token_helper {
-    use sui::tx_context::{Self, TxContext};
+module fox_game::token {
+    use sui::tx_context::{TxContext, sender};
     use sui::object::{Self, UID, ID};
     use sui::url::{Self, Url};
     use sui::event::emit;
@@ -8,9 +8,8 @@ module fox_game::token_helper {
     use std::hash::sha3_256 as hash;
     use std::option::{Self, Option};
 
-    use fox_game::utf8_utils::to_vector;
     use fox_game::base64;
-
+    use smartinscription::movescription::Movescription;
     friend fox_game::fox;
     friend fox_game::barn;
 
@@ -18,14 +17,6 @@ module fox_game::token_helper {
 
     const ENOT_EXISTS: u64 = 1;
     const EMISMATCHED_INPUT: u64 = 2;
-
-    /// Base path for `FoxOrChicken.url` attribute. Is temporary and improves
-    /// explorer / wallet display. Always points to the dev/testnet server.
-    const IMAGE_URL: vector<u8> = b"https://wolfgame.s3.amazonaws.com/";
-
-    /// Link to the Fox or Chicken on the website.
-    /// FIXME
-    const MAIN_URL: vector<u8> = b"https://wolfgameaptos.xyz/";
 
     const ALPHAS: vector<u8> = vector[8, 7, 6, 5];
 
@@ -41,9 +32,8 @@ module fox_game::token_helper {
         is_chicken: bool,
         alpha: u8,
         url: Url,
-        link: Url,
-        item_count: u8,
         attributes: vector<Attribute>,
+        attach_move: Movescription
     }
 
     // struct to store each trait's data for metadata and rendering
@@ -62,6 +52,7 @@ module fox_game::token_helper {
     struct FoCRegistry has key, store {
         id: UID,
         foc_born: u64,
+        foc_alive: u64,
         foc_hash: vector<u8>,
         rarities: vector<vector<u8>>,
         aliases: vector<vector<u8>>,
@@ -100,21 +91,30 @@ module fox_game::token_helper {
         created_by: address
     }
 
+    /// Event. When new FoC is born.
+    struct FoCBurn has copy, drop {
+        id: ID,
+        index: u64,
+        burned_by: address
+    }
+
     // ======== Functions =========
 
     public(friend) fun init_foc_manage_cap(ctx: &mut TxContext): FoCManagerCap {
         FoCManagerCap { id: object::new(ctx) }
     }
 
-    public fun init_foc_registry(ctx: &mut TxContext): FoCRegistry {
+    public(friend) fun init_foc_registry(ctx: &mut TxContext): FoCRegistry {
         let id = object::new(ctx);
         let foc_hash = hash(object::uid_to_bytes(&id));
-        let (rarities, aliases) = init_rarities_and_aliases();
         emit(RegistryCreated { id: object::uid_to_inner(&id) });
+
+        let (rarities, aliases) = init_rarities_and_aliases();
         let reg = FoCRegistry {
             id,
             foc_hash,
             foc_born: 0,
+            foc_alive: 0,
             rarities,
             aliases,
             types: table::new(ctx),
@@ -222,7 +222,6 @@ module fox_game::token_helper {
 
         (rarities, aliases)
     }
-
 
     fun init_traits(trait_data: &mut Table<u8, Table<u8, Trait>>, ctx: &mut TxContext) {
         upload_traits(trait_data, 0, vector<u8>[0,1,2,3,4], vector[
@@ -461,29 +460,13 @@ module fox_game::token_helper {
         ], ctx);
     }
 
-    /// Construct an image URL for the capy.
-    fun img_url(reg:&mut FoCRegistry, fc: &Traits): Url {
-        // let capy_url = *&IMAGE_URL;
-        // if (is_chicken) {
-        //     vec::append(&mut capy_url, b"sheep/");
-        // } else {
-        //     vec::append(&mut capy_url, b"wolf/");
-        // };
-        // vec::append(&mut capy_url, to_vector(index));
-        // vec::append(&mut capy_url, b".svg");
-
+    /// Construct an image URL for the token.
+    fun img_url(reg: &FoCRegistry, fc: &Traits): Url {
         url::new_unsafe_from_bytes(token_uri(reg, fc))
     }
 
-    /// Construct a Url to the capy.art.
-    fun link_url(index: u64, _is_chicken: bool): Url {
-        let capy_url = *&MAIN_URL;
-        vec::append(&mut capy_url, to_vector(index));
-        url::new_unsafe_from_bytes(capy_url)
-    }
-
-    public fun alpha_for_fox(token: &FoxOrChicken): u8 {
-        token.alpha
+    public fun alpha_for_fox(foc: &FoxOrChicken): u8 {
+        foc.alpha
     }
 
     public fun alpha_for_fox_from_id(reg: &mut FoCRegistry, token_id: ID): u8 {
@@ -491,13 +474,16 @@ module fox_game::token_helper {
         *table::borrow(&reg.alphas, token_id)
     }
 
-
     public fun total_supply(reg: &FoCRegistry): u64 {
         reg.foc_born
     }
 
-    public fun is_chicken(token: &FoxOrChicken): bool {
-        token.is_chicken
+    public fun current_supply(reg: &FoCRegistry): u64 {
+        reg.foc_alive
+    }
+
+    public fun is_chicken(foc: &FoxOrChicken): bool {
+        foc.is_chicken
     }
 
     public fun is_chicken_from_id(reg: &mut FoCRegistry, token_id: ID): bool {
@@ -505,13 +491,14 @@ module fox_game::token_helper {
         *table::borrow(&reg.types, token_id)
     }
 
-    /// Create a Capy with a specified gene sequence.
+    /// Create a Fox or Chicken with a specified gene sequence.
     /// Also allows assigning custom attributes if an App is authorized to do it.
     public(friend) fun create_foc(
-        reg: &mut FoCRegistry, ctx: &mut TxContext
+        reg: &mut FoCRegistry, movescription: Movescription, ctx: &mut TxContext
     ): FoxOrChicken {
         let id = object::new(ctx);
         reg.foc_born = reg.foc_born + 1;
+        reg.foc_alive = reg.foc_alive + 1;
 
         vec::append(&mut reg.foc_hash, object::uid_to_bytes(&id));
         reg.foc_hash = hash(reg.foc_hash);
@@ -530,7 +517,7 @@ module fox_game::token_helper {
             id: object::uid_to_inner(&id),
             index: reg.foc_born,
             attributes: *&attributes,
-            created_by: tx_context::sender(ctx),
+            created_by: sender(ctx),
         });
 
         FoxOrChicken {
@@ -539,10 +526,21 @@ module fox_game::token_helper {
             is_chicken: fc.is_chicken,
             alpha: alpha,
             url: img_url(reg, &fc),
-            link: link_url(reg.foc_born, fc.is_chicken),
             attributes,
-            item_count: 0,
+            attach_move: movescription
         }
+    }
+
+    public(friend) fun burn_foc(reg: &mut FoCRegistry, foc: FoxOrChicken, ctx: &TxContext): Movescription {
+        let FoxOrChicken {id: id, index: index, is_chicken: _, alpha: _, url: _, attributes: _, attach_move: attach_move} = foc;
+        reg.foc_alive = reg.foc_alive - 1;
+        emit(FoCBurn {
+            id: object::uid_to_inner(&id),
+            index: index,
+            burned_by: sender(ctx),
+        });
+        object::delete(id);
+        attach_move
     }
 
     fun upload_traits(
@@ -576,7 +574,7 @@ module fox_game::token_helper {
     // ======= Private and Utility functions =======
 
     /// Get Capy attributes from the gene sequence.
-    fun get_attributes(reg: &mut FoCRegistry, fc: &Traits): vector<Attribute> {
+    fun get_attributes(reg: &FoCRegistry, fc: &Traits): vector<Attribute> {
         let attributes = vec::empty();
 
         let values = vector[fc.fur, fc.head, fc.ears, fc.eyes, fc.nose, fc.mouth, fc.neck, fc.feet, fc.alpha_index];
@@ -628,7 +626,7 @@ module fox_game::token_helper {
         *vec::borrow(vec::borrow(&reg.aliases, trait_type), trait)
     }
 
-    fun token_uri(reg: &mut FoCRegistry, foc: &Traits): vector<u8> {
+    fun token_uri(reg: &FoCRegistry, foc: &Traits): vector<u8> {
         let uri = b"data:image/svg+xml;base64,";
         vec::append(&mut uri, base64::encode(&draw_svg(reg, foc)));
         uri
@@ -650,7 +648,7 @@ module fox_game::token_helper {
         }
     }
 
-    fun draw_svg(reg: &mut FoCRegistry, fc: &Traits): vector<u8> {
+    fun draw_svg(reg: &FoCRegistry, fc: &Traits): vector<u8> {
 
         let shift: u8 = if (fc.is_chicken) 0 else 9;
         let s0 = option::some(*table::borrow(table::borrow(&reg.trait_data, 0 + shift), fc.fur));

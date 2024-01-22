@@ -1,8 +1,7 @@
 module fox_game::random {
     use std::vector;
 
-    const ENOT_ROOT: u64 = 0;
-    const EHIGH_ARG_GREATER_THAN_LOW_ARG: u64 = 1;
+    const EHIGH_ARG_GREATER_THAN_LOW_ARG: u64 = 0;
 
     public fun bytes_to_u128(bytes: vector<u8>): u128 {
         let value = 0u128;
