@@ -68,6 +68,14 @@ module fox_game::fox {
         assert!(movescription::amount(inscription) >= required_minimum, EInvalidMovescription);
     }
 
+    fun add_to_treasury(global: &mut Global, movescription: Movescription) {
+        if (option::is_some(&global.treasury)) {
+            movescription::merge(option::borrow_mut(&mut global.treasury), movescription);
+        } else {
+            option::fill(&mut global.treasury, movescription);
+        };
+    }
+
     // mint a fox or chicken
     #[lint_allow(self_transfer)]
     public entry fun mint(
@@ -104,11 +112,7 @@ module fox_game::fox {
             let base_price = amount * config::mint_price();
             if (price > base_price) {
                 let treasury_move = movescription::do_split(&mut paid_move, price - base_price, ctx);
-                if (option::is_some(&global.treasury)) {
-                    movescription::merge(option::borrow_mut(&mut global.treasury), treasury_move);
-                } else {
-                    option::fill(&mut global.treasury, treasury_move);
-                };
+                add_to_treasury(global, treasury_move);
             };
         } else {
             // return extra movescription
@@ -214,6 +218,8 @@ module fox_game::fox {
     ) {
         assert_enabled(global);
         let movescription = token::burn_foc(&mut global.foc_registry, foc, ctx);
+        let fee = movescription::do_split(&mut movescription, 500, ctx);
+        add_to_treasury(global, fee);
         public_transfer(movescription, sender(ctx));
     }
 
@@ -228,6 +234,8 @@ module fox_game::fox {
         while (i > 0) {
             let foc = vector::pop_back(&mut focs);
             let movescription = token::burn_foc(&mut global.foc_registry, foc, ctx);
+            let fee = movescription::do_split(&mut movescription, 500, ctx);
+            add_to_treasury(global, fee);
             public_transfer(movescription, sender(ctx));
             i = i - 1;
         };
