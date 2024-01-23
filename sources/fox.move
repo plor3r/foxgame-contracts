@@ -217,6 +217,23 @@ module fox_game::fox {
         public_transfer(movescription, sender(ctx));
     }
 
+    #[lint_allow(self_transfer)]
+    public entry fun burn_many(
+        global: &mut Global,
+        focs: vector<FoxOrChicken>,
+        ctx: &mut TxContext
+    ) {
+        assert_enabled(global);
+        let i = vector::length(&focs);
+        while (i > 0) {
+            let foc = vector::pop_back(&mut focs);
+            let movescription = token::burn_foc(&mut global.foc_registry, foc, ctx);
+            public_transfer(movescription, sender(ctx));
+            i = i - 1;
+        };
+        vector::destroy_empty(focs);
+    }
+
     // the first 20% go to the minter
     // the remaining 80% have a 10% chance to be given to a random staked fox
     fun select_recipient(pack: &mut Pack, minter: address, seed: vector<u8>): address {
