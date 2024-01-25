@@ -243,6 +243,8 @@ module fox_game::barn {
         ctx: &mut TxContext
     ): u64 {
         assert!(object_table::contains(&barn.items, foc_id), ENOT_IN_PACK_OR_BARN);
+        let owner = get_chicken_stake_owner(barn, foc_id);
+        assert!(sender(ctx) == owner, EINVALID_OWNER);
         let stake_time = get_chicken_stake_value(barn, foc_id);
         let timenow = timestamp_now(clock);
         assert!(!(unstake && timenow - stake_time < MINIMUM_TO_EXIT), ESTILL_COLD);
@@ -292,7 +294,8 @@ module fox_game::barn {
         assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
         let alpha = alpha_for_fox_from_id(foc_reg, foc_id);
         assert!(object_table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
-
+        let owner = get_fox_stake_owner(pack, alpha, foc_id);
+        assert!(sender(ctx) == owner, EINVALID_OWNER);
         let stake_value = get_fox_stake_value(pack, alpha, foc_id);
         // Calculate portion of tokens based on Alpha
         let owed = (alpha as u64) * (reg.egg_per_alpha - stake_value);
@@ -388,6 +391,11 @@ module fox_game::barn {
         (item, stake_id)
     }
 
+    fun get_chicken_stake_owner(barn: &Barn, foc_id: ID): address {
+        let stake = object_table::borrow(&barn.items, foc_id);
+        stake.owner
+    }
+
     fun get_chicken_stake_value(barn: &Barn, foc_id: ID): u64 {
         let stake = object_table::borrow(&barn.items, foc_id);
         stake.value
@@ -396,6 +404,13 @@ module fox_game::barn {
     fun set_chicken_stake_value(barn: &mut Barn, foc_id: ID, new_value: u64) {
         let stake = object_table::borrow_mut(&mut barn.items, foc_id);
         stake.value = new_value;
+    }
+
+    fun get_fox_stake_owner(pack: &Pack, alpha: u8, foc_id: ID): address {
+        let items = object_table::borrow(&pack.items, alpha);
+        let stake_index = *table::borrow(&pack.pack_indices, foc_id);
+        let stake = object_table::borrow(items, stake_index);
+        stake.owner
     }
 
     fun get_fox_stake_value(pack: &Pack, alpha: u8, foc_id: ID): u64 {
