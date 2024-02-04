@@ -1,7 +1,6 @@
 module fox_game::barn {
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{TxContext, sender};
-    use sui::transfer::{public_transfer};
     use sui::table::{Self, Table};
     use sui::object_table::{Self, ObjectTable};
     use sui::event::emit;
@@ -9,6 +8,7 @@ module fox_game::barn {
     use sui::dynamic_field as dof;
     use sui::clock::{Self, Clock};
 
+    use std::option::{Self, Option};
     use std::vector as vec;
     use std::hash::sha3_256 as hash;
 
@@ -190,22 +190,36 @@ module fox_game::barn {
         tokens: vector<ID>,
         unstake: bool,
         ctx: &mut TxContext,
-    ) {
+    ): vector<FoxOrChicken> {
         update_earnings(reg, clock);
         let i = vec::length<ID>(&tokens);
+        let focs = vec::empty<FoxOrChicken>();
         let owed: u64 = 0;
         while (i > 0) {
             let token_id = vec::pop_back(&mut tokens);
             if (token::is_chicken_from_id(foc_reg, token_id)) {
-                owed = owed + claim_chicken_from_barn(reg, barn, clock, token_id, unstake, ctx);
+                let (the_owed, foc) = claim_chicken_from_barn(reg, barn, clock, token_id, unstake, ctx);
+                owed = owed + the_owed;
+                if (option::is_some(&foc)) {
+                    vec::push_back(&mut focs, option::destroy_some(foc));
+                } else {
+                    option::destroy_none(foc);
+                };
             } else {
-                owed = owed + claim_fox_from_pack(foc_reg, reg, pack, token_id, unstake, ctx);
+                let (the_owed, foc) = claim_fox_from_pack(foc_reg, reg, pack, token_id, unstake, ctx);
+                owed = owed + the_owed;
+                if (option::is_some(&foc)) {
+                    vec::push_back(&mut focs, option::destroy_some(foc));
+                } else {
+                    option::destroy_none(foc);
+                };
             };
             i = i - 1;
         };
-        if (owed == 0) { return };
+        vec::destroy_empty(tokens);
+        if (owed == 0) { return focs };
         egg::mint(treasury_cap, owed, sender(ctx), ctx);
-        vec::destroy_empty(tokens)
+        focs
     }
 
     fun stake_chicken_to_barn(
@@ -241,7 +255,7 @@ module fox_game::barn {
         foc_id: ID,
         unstake: bool,
         ctx: &mut TxContext
-    ): u64 {
+    ): (u64, Option<FoxOrChicken>) {
         assert!(object_table::contains(&barn.items, foc_id), ENOT_IN_PACK_OR_BARN);
         let owner = get_chicken_stake_owner(barn, foc_id);
         assert!(sender(ctx) == owner, EINVALID_OWNER);
@@ -257,6 +271,7 @@ module fox_game::barn {
             // stop earning additional $WOOL if it's all been earned
             owed = (reg.last_claim_timestamp - stake_time) * DAILY_EGG_RATE / ONE_DAY_IN_SECOND;
         };
+        let foc_item = option::none();
         if (unstake) {
             let id = object::new(ctx);
             // FIXME
@@ -269,7 +284,7 @@ module fox_game::barn {
             reg.total_chicken_staked = reg.total_chicken_staked - 1;
             let (item, stake_id) = remove_chicken_from_barn(barn, foc_id, ctx);
             remove_staked(&mut barn.id, sender(ctx), stake_id);
-            public_transfer(item, sender(ctx));
+            option::fill(&mut foc_item, item);
         } else {
             // percentage tax to staked foxes
             pay_fox_tax(reg, owed * EGG_CLAIM_TAX_PERCENTAGE / 100);
@@ -279,7 +294,7 @@ module fox_game::barn {
             set_chicken_stake_value(barn, foc_id, timenow);
         };
         emit(FoCClaimed { id: foc_id, earned: owed, unstake });
-        owed
+        (owed, foc_item)
     }
 
     #[lint_allow(self_transfer)]
@@ -290,7 +305,7 @@ module fox_game::barn {
         foc_id: ID,
         unstake: bool,
         ctx: &TxContext
-    ): u64 {
+    ): (u64, Option<FoxOrChicken>) {
         assert!(table::contains(&pack.pack_indices, foc_id), ENOT_IN_PACK_OR_BARN);
         let alpha = alpha_for_fox_from_id(foc_reg, foc_id);
         assert!(object_table::contains(&pack.items, alpha), ENOT_IN_PACK_OR_BARN);
@@ -299,17 +314,18 @@ module fox_game::barn {
         let stake_value = get_fox_stake_value(pack, alpha, foc_id);
         // Calculate portion of tokens based on Alpha
         let owed = (alpha as u64) * (reg.egg_per_alpha - stake_value);
+        let foc_item = option::none();
         if (unstake) {
             // Remove Alpha from total staked
             reg.total_alpha_staked = reg.total_alpha_staked - (alpha as u64);
             let (item, stake_id) = remove_fox_from_pack(pack, alpha, foc_id, ctx);
             remove_staked(&mut pack.id, sender(ctx), stake_id);
-            public_transfer(item, sender(ctx));
+            option::fill(&mut foc_item, item);
         } else {
             set_fox_stake_value(pack, alpha, foc_id, reg.egg_per_alpha);
         };
         emit(FoCClaimed { id: foc_id, earned: 0, unstake });
-        owed
+        (owed, foc_item)
     }
 
     fun add_chicken_to_barn(

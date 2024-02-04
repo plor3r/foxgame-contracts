@@ -1,3 +1,4 @@
+#[allow(implicit_const_copy)]
 module fox_game::base64 {
     use std::vector;
 

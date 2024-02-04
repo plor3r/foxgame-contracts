@@ -1,4 +1,6 @@
+#[allow(implicit_const_copy)]
 module fox_game::token {
+    use std::ascii;
     use sui::tx_context::{TxContext, sender};
     use sui::object::{Self, UID, ID};
     use sui::url::{Self, Url};
@@ -11,7 +13,6 @@ module fox_game::token {
     use sui::package::Publisher;
 
     use fox_game::base64;
-    use smartinscription::movescription::Movescription;
     friend fox_game::fox;
     friend fox_game::barn;
 
@@ -34,8 +35,7 @@ module fox_game::token {
         is_chicken: bool,
         alpha: u8,
         url: Url,
-        attributes: vector<Attribute>,
-        attach_move: Movescription
+        attributes: vector<Attribute>
     }
 
     // struct to store each trait's data for metadata and rendering
@@ -514,7 +514,7 @@ module fox_game::token {
     /// Create a Fox or Chicken with a specified gene sequence.
     /// Also allows assigning custom attributes if an App is authorized to do it.
     public(friend) fun create_foc(
-        reg: &mut FoCRegistry, movescription: Movescription, ctx: &mut TxContext
+        reg: &mut FoCRegistry, ctx: &mut TxContext
     ): FoxOrChicken {
         let id = object::new(ctx);
         reg.foc_born = reg.foc_born + 1;
@@ -546,13 +546,12 @@ module fox_game::token {
             is_chicken: fc.is_chicken,
             alpha: alpha,
             url: img_url(reg, &fc),
-            attributes,
-            attach_move: movescription
+            attributes
         }
     }
 
-    public(friend) fun burn_foc(reg: &mut FoCRegistry, foc: FoxOrChicken, ctx: &TxContext): Movescription {
-        let FoxOrChicken {id: id, index: index, is_chicken: _, alpha: _, url: _, attributes: _, attach_move: attach_move} = foc;
+    public(friend) fun burn_foc(reg: &mut FoCRegistry, foc: FoxOrChicken, ctx: &TxContext) {
+        let FoxOrChicken {id: id, index: index, is_chicken: _, alpha: _, url: _, attributes: _} = foc;
         reg.foc_alive = reg.foc_alive - 1;
         emit(FoCBurn {
             id: object::uid_to_inner(&id),
@@ -560,7 +559,6 @@ module fox_game::token {
             burned_by: sender(ctx),
         });
         object::delete(id);
-        attach_move
     }
 
     fun upload_traits(
@@ -704,5 +702,13 @@ module fox_game::token {
         vec::append(&mut svg, draw_trait_or_none(s7));
         vec::append(&mut svg, b"</svg>");
         svg
+    }
+
+    public fun token_url(token: &FoxOrChicken): Url {
+        token.url
+    }
+
+    public fun token_url_bytes(token: &FoxOrChicken): vector<u8> {
+        ascii::into_bytes(url::inner_url(&token.url))
     }
 }

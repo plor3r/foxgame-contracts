@@ -10,6 +10,9 @@ module fox_game::fox {
     use sui::tx_context::{TxContext, sender};
     use sui::transfer::{public_share_object, public_transfer};
     use sui::package;
+    use sui::table::{Self, Table};
+    use sui::balance;
+    use sui::sui::SUI;
 
     use fox_game::config;
     use fox_game::token::{Self, FoCRegistry, FoxOrChicken};
@@ -17,7 +20,9 @@ module fox_game::fox {
     use fox_game::egg::EGG;
     use fox_game::utf8_utils::to_vector;
 
-    use smartinscription::movescription::{Self, Movescription};
+    use smartinscription::movescription::{Self, Movescription, TickRecordV2};
+    use smartinscription::content_type::{content_type_image_svg};
+    use smartinscription::util::split_and_return_remain;
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -28,6 +33,8 @@ module fox_game::fox {
     /// One-Time-Witness for the module.
     struct FOX has drop {}
 
+    struct WITNESS has drop {}
+
     struct Global has key, store {
         id: UID,
         minting_enabled: bool,
@@ -36,6 +43,10 @@ module fox_game::fox {
         barn: Barn,
         barn_registry: BarnRegistry,
         foc_registry: FoCRegistry,
+        // movescription ID -> FoxOrChicken
+        escrow: Table<ID, FoxOrChicken>,
+        // FoxOrChicken ID -> Movescription
+        stores: Table<ID, Movescription>,
     }
 
     fun init(otw: FOX, ctx: &mut TxContext) {
@@ -49,6 +60,8 @@ module fox_game::fox {
             pack: barn::init_pack(ctx),
             barn: barn::init_barn(ctx),
             foc_registry: token::init_foc_registry(ctx),
+            escrow: table::new(ctx),
+            stores: table::new(ctx),
         });
 
         let publisher = package::claim(otw, ctx);
@@ -76,10 +89,94 @@ module fox_game::fox {
         };
     }
 
+    fun add_ins_to_stores(
+        global: &mut Global,
+        token_id: ID,
+        movescription: Movescription
+    ) {
+        table::add(&mut global.stores, token_id, movescription);
+    }
+
+    fun add_token_to_escrow(
+        global: &mut Global,
+        ins_id: ID,
+        token: FoxOrChicken
+    ) {
+        table::add(&mut global.escrow, ins_id, token);
+    }
+
+    fun mint_ins_with_token(
+        tick_record: &mut TickRecordV2,
+        token: &FoxOrChicken,
+        locked_move: Movescription,
+        ctx: &mut TxContext
+    ): Movescription {
+        // name_tick_record: &mut TickRecordV2,
+        let url = token::token_url_bytes(token);
+        let metadata = movescription::new_metadata(content_type_image_svg(), url);
+        let ins = movescription::do_mint_with_witness(
+            tick_record,
+            balance::zero<SUI>(),
+            1,
+            option::some(metadata),
+            WITNESS {},
+            ctx
+        );
+        movescription::lock_within(&mut ins, locked_move);
+        ins
+    }
+
+    fun retrieve_ins_with_token_id(
+        global: &mut Global,
+        id: ID,
+    ): Movescription {
+        assert!(table::contains(&global.stores, id), 1);
+        let ins = table::remove(&mut global.stores, id);
+        ins
+    }
+
+    fun retrieve_token_with_ins_id(
+        global: &mut Global,
+        id: ID,
+    ): FoxOrChicken {
+        assert!(table::contains(&global.escrow, id), 1);
+        let token = table::remove(&mut global.escrow, id);
+        token
+    }
+
+    fun retrieve_token(
+        global: &mut Global,
+        inscription: Movescription,
+    ): FoxOrChicken {
+        let id = object::id(&inscription);
+        assert!(table::contains(&global.escrow, id), 1);
+        let token = table::remove(&mut global.escrow, id);
+        let token_id = object::id(&token);
+        add_ins_to_stores(global, token_id, inscription);
+        token
+    }
+
+    fun retrieve_tokens(
+        global: &mut Global,
+        inscriptions: vector<Movescription>,
+    ): vector<FoxOrChicken> {
+        let tokens = vector::empty();
+        let length = vector::length(&inscriptions);
+        while (length > 0) {
+            let inscription = vector::pop_back(&mut inscriptions);
+            let token = retrieve_token(global, inscription);
+            vector::push_back(&mut tokens, token);
+            length = length - 1;
+        };
+        vector::destroy_empty(inscriptions);
+        tokens
+    }
+
     // mint a fox or chicken
     #[lint_allow(self_transfer)]
     public entry fun mint(
         global: &mut Global,
+        tick_record: &mut TickRecordV2,
         amount: u64,
         stake: bool,
         paid_move: Movescription,
@@ -97,7 +194,6 @@ module fox_game::fox {
         // currently only for paid_tokens
         if (token_supply < config::paid_tokens()) {
             assert!(token_supply + amount <= config::paid_tokens(), EALL_MINTED);
-    
             let price = mint_cost(token_supply) * amount;
             assert_valid_inscription(&paid_move, price);
             // return extra movescription
@@ -107,8 +203,7 @@ module fox_game::fox {
                 let remainder = movescription::do_split(&mut paid_move, return_amount, ctx);
                 public_transfer(remainder, sender(ctx));
             };
-
-            // // transfer to treasury
+            // transfer extra move to treasury
             let base_price = amount * config::mint_price();
             if (price > base_price) {
                 let treasury_move = movescription::do_split(&mut paid_move, price - base_price, ctx);
@@ -131,29 +226,38 @@ module fox_game::fox {
         let i = 0;
         while (i < amount - 1) {
             let token_index = token_supply + i + 1;
-            
+
             let recipient = minter;
             if (token_index > config::paid_tokens()) {
                 recipient = select_recipient(&mut global.pack, minter, seed);
             };
-            let token_move = movescription::do_split(&mut paid_move, config::mint_price(), ctx);
-            let the_token = token::create_foc(&mut global.foc_registry, token_move, ctx);
+
+            let move_to_lock = movescription::do_split(&mut paid_move, config::mint_price(), ctx);
+            let the_token = token::create_foc(&mut global.foc_registry, ctx);
+            let foc_ins = mint_ins_with_token(tick_record, &the_token, move_to_lock, ctx);
+
             if (!stake) {
-                public_transfer(the_token, recipient);
+                add_token_to_escrow(global, object::id(&foc_ins), the_token);
+                public_transfer(foc_ins, recipient);
             } else {
+                add_ins_to_stores(global, object::id(&the_token), foc_ins);
                 vector::push_back(&mut tokens, the_token);
             };
             i = i + 1;
         };
-        // the last movescription can not be splitted
+        // the last one
+        let token_index = token_supply + 1;
         let recipient = minter;
-        if (token_supply + i + 1 > config::paid_tokens()) {
+        if (token_index > config::paid_tokens()) {
             recipient = select_recipient(&mut global.pack, minter, seed);
         };
-        let the_token = token::create_foc(&mut global.foc_registry, paid_move, ctx);
+        let the_token = token::create_foc(&mut global.foc_registry, ctx);
+        let foc_ins = mint_ins_with_token(tick_record, &the_token, paid_move, ctx);
         if (!stake) {
-            public_transfer(the_token, recipient);
+            add_token_to_escrow(global, object::id(&foc_ins), the_token);
+            public_transfer(foc_ins, recipient);
         } else {
+            add_ins_to_stores(global, object::id(&the_token), foc_ins);
             vector::push_back(&mut tokens, the_token);
         };
 
@@ -173,11 +277,12 @@ module fox_game::fox {
 
     public entry fun add_many_to_barn_and_pack(
         global: &mut Global,
-        tokens: vector<FoxOrChicken>,
+        ins: vector<Movescription>,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
         assert_enabled(global);
+        let tokens = retrieve_tokens(global, ins);
         barn::stake_many_to_barn_and_pack(
             &mut global.barn_registry,
             &mut global.barn,
@@ -191,13 +296,13 @@ module fox_game::fox {
     public entry fun claim_many_from_barn_and_pack(
         global: &mut Global,
         egg_treasury_cap: &mut TreasuryCap<EGG>,
-        tokens: vector<ID>,
+        tokens: vector<ID>, // token ID
         unstake: bool,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
         assert_enabled(global);
-        barn::claim_many_from_barn_and_pack(
+        let focs = barn::claim_many_from_barn_and_pack(
             &mut global.foc_registry,
             &mut global.barn_registry,
             &mut global.barn,
@@ -208,38 +313,81 @@ module fox_game::fox {
             unstake,
             ctx
         );
+        let i = vector::length(&focs);
+        while (i > 0) {
+            let token = vector::pop_back(&mut focs);
+            let ins = retrieve_ins_with_token_id(global, object::id(&token));
+            add_token_to_escrow(global, object::id(&ins), token);
+            public_transfer(ins, sender(ctx));
+        };
+        vector::destroy_empty(focs);
     }
 
     #[lint_allow(self_transfer)]
     public entry fun burn(
         global: &mut Global,
-        foc: FoxOrChicken,
+        tick_record: &mut TickRecordV2,
+        inscription: Movescription,
         ctx: &mut TxContext
     ) {
         assert_enabled(global);
-        let movescription = token::burn_foc(&mut global.foc_registry, foc, ctx);
-        let fee = movescription::do_split(&mut movescription, 500, ctx);
-        add_to_treasury(global, fee);
-        public_transfer(movescription, sender(ctx));
+        burn_one(global, tick_record, inscription, ctx);
     }
 
     #[lint_allow(self_transfer)]
     public entry fun burn_many(
         global: &mut Global,
-        focs: vector<FoxOrChicken>,
+        tick_record: &mut TickRecordV2,
+        inscriptions: vector<Movescription>,
         ctx: &mut TxContext
     ) {
         assert_enabled(global);
-        let i = vector::length(&focs);
+        let i = vector::length(&inscriptions);
         while (i > 0) {
-            let foc = vector::pop_back(&mut focs);
-            let movescription = token::burn_foc(&mut global.foc_registry, foc, ctx);
-            let fee = movescription::do_split(&mut movescription, 500, ctx);
-            add_to_treasury(global, fee);
-            public_transfer(movescription, sender(ctx));
+            let inscription = vector::pop_back(&mut inscriptions);
+            burn_one(global, tick_record, inscription, ctx);
             i = i - 1;
         };
-        vector::destroy_empty(focs);
+        vector::destroy_empty(inscriptions);
+    }
+
+    #[lint_allow(self_transfer)]
+    fun burn_one(global: &mut Global, tick_record: &mut TickRecordV2, inscription: Movescription, ctx: &mut TxContext) {
+        let id = object::id(&inscription);
+        let foc = retrieve_token_with_ins_id(global, id);
+        // destroy foc
+        token::burn_foc(&mut global.foc_registry, foc, ctx);
+        // destroy ins and return fee
+        let (locked_sui, locked_move) = movescription::do_burn_with_witness(
+            tick_record,
+            inscription,
+            b"burn",
+            WITNESS {},
+            ctx
+        );
+        let remain = charge_fee(global, locked_move, 500, ctx);
+        if (option::is_some(&remain)) {
+            public_transfer(option::destroy_some(remain), sender(ctx));
+        }else {
+            option::destroy_none(remain);
+        };
+        public_transfer(locked_sui, sender(ctx));
+    }
+
+    fun charge_fee(
+        global: &mut Global,
+        locked_move: Option<Movescription>,
+        fee: u64,
+        ctx: &mut TxContext
+    ): Option<Movescription> {
+        if (option::is_some(&locked_move)) {
+            let locked_move = option::destroy_some(locked_move);
+            let (fee_move, remain) = split_and_return_remain(locked_move, fee, ctx);
+            add_to_treasury(global, fee_move);
+            remain
+        }else {
+            locked_move
+        }
     }
 
     // the first 20% go to the minter
