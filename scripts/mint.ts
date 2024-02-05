@@ -19,6 +19,8 @@ const EggTreasuryCap = env.EggTreasuryCap;
 const MovescriptionPackageId = env.MovescriptionPackageId;
 const inscription_id = '0x0d8fd7b5903736ac7b564ec90d31efa4359452370f38f18f41ba27147847abce';
 
+const wolf_tick_record_v2 = '0x9ae4078caa65ea012c211aa348e396b9f0707b9670bde40cd66d0a0c7456f132';
+
 async function main() {
   const txb = new TransactionBlock();
   let amount = 1;
@@ -31,6 +33,7 @@ async function main() {
     target: `${FoxGamePackageId}::fox::mint`,
     arguments: [
       txb.object(FoxGameGlobal),
+      txb.object(wolf_tick_record_v2),
       txb.pure(amount),
       txb.pure(false),
       txb.object(move),
