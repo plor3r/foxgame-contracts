@@ -15,14 +15,15 @@ module fox_game::fox {
     use sui::sui::SUI;
 
     use fox_game::config;
-    use fox_game::token::{Self, FoCRegistry, FoxOrChicken};
+    use fox_game::token::{Self, FoCRegistry, FoxOrChicken, FoCManagerCap};
     use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
     use fox_game::egg::EGG;
     use fox_game::utf8_utils::to_vector;
 
-    use smartinscription::movescription::{Self, Movescription, TickRecordV2};
+    use smartinscription::movescription::{Self, Movescription, TickRecordV2, DeployRecord};
     use smartinscription::content_type::{content_type_image_svg};
     use smartinscription::util::split_and_return_remain;
+    use smartinscription::tick_factory;
 
     /// The Naming Service contract is not enabled
     const ENOT_ENABLED: u64 = 1;
@@ -111,7 +112,6 @@ module fox_game::fox {
         locked_move: Movescription,
         ctx: &mut TxContext
     ): Movescription {
-        // name_tick_record: &mut TickRecordV2,
         let url = token::token_url_bytes(token);
         let metadata = movescription::new_metadata(content_type_image_svg(), url);
         let ins = movescription::do_mint_with_witness(
@@ -170,6 +170,30 @@ module fox_game::fox {
         };
         vector::destroy_empty(inscriptions);
         tokens
+    }
+
+    #[lint_allow(share_owned)]
+    public entry fun deploy(
+        _: &FoCManagerCap,
+        deploy_record: &mut DeployRecord,
+        tick_tick_record: &mut TickRecordV2,
+        tick_name: Movescription,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        let total_supply = config::max_tokens();
+        let tick_record = tick_factory::do_deploy(
+            deploy_record,
+            tick_tick_record,
+            tick_name,
+            total_supply,
+            true,
+            WITNESS {},
+            clock,
+            ctx
+        );
+        // movescription::tick_record_add_df(&mut tick_record, factory, WITNESS{});
+        public_share_object(tick_record);
     }
 
     // mint a fox or chicken
@@ -319,6 +343,7 @@ module fox_game::fox {
             let ins = retrieve_ins_with_token_id(global, object::id(&token));
             add_token_to_escrow(global, object::id(&ins), token);
             public_transfer(ins, sender(ctx));
+            i = i - 1;
         };
         vector::destroy_empty(focs);
     }

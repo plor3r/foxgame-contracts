@@ -2,14 +2,15 @@
 name = "fox_game"
 authors = ["qiwihui"]
 version = "0.0.1"
-# published-at = ""
+published-at = "0x114f099193558f577d8635e1d6c46629b2e21d577e2b55b9ca8ebd9132f5226e"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
-SmartInscription = { git = "https://github.com/movescriptions/movescriptions.git", subdir = "sui", rev = "dev"}
+# SmartInscription = { git = "https://github.com/movescriptions/movescriptions.git", subdir = "sui", rev = "dev"}
+SmartInscription = { git = "https://github.com/movescriptions/movescriptions", subdir="sui", rev="sui-testnet" }
 # SmartInscription = { local = "../movescriptions/sui" }
 
 [addresses]
 fox_game = "0x0"
-# fox_game = "0xc0405de927020b2c00b7ee4a2e8dcc9d84d78163d8cb96ec46023665795081dd"
+# fox_game = "0xd43284f22c810f15a598dcceb61e0671c549922ce73a5d65667ebc52e2785353"
 # smartinscription = "0xc21b5beab1036cf45741055d507cf64f4cfaa65415d73e030f9b251307624bed"
