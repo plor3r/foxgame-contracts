@@ -19,7 +19,6 @@ const FoCManagerCap = env.FoCManagerCap;
 const MovescriptionPackageId = env.MovescriptionPackageId;
 const MovescriptionDeployRecord = env.MovescriptionDeployRecord;
 const MovescriptionTICKTicketRecordV2Id = env.MovescriptionTICKTicketRecordV2Id;
-const inscription_id = '0x5d84c32e1e0b9946e12c9278401a9b5f102bb8381d9d75c55068f04fae52fdd6';
 
 // tx: GzXoZr7TpYoNn8VQHQdiXSRdR4VBkvFuC2jzR4ewYaoh
 
@@ -27,9 +26,10 @@ async function main() {
   const txb = new TransactionBlock();
   let amount = 1;
   // == deposit
-  const tick_move = '0x16920d0e491485cc76f62cbe0814530707bc5b8d6577e03ff6fd92a430b59715';
+  // const tick_move = '0x889bb82ce46d3e9af0eec1de9439ca86a9c6f718dcefef1ad625510b92a9aeec'; // WOLFi
+  const tick_move = '0x034863628feb7cdc0e5d9595f71b053db4926ad52c94eae84edaadf97220f324'; // WOOLi
   txb.moveCall({
-    target: `${FoxGamePackageId}::fox::deploy`,
+    target: `${FoxGamePackageId}::fox::deploy_eggs`,
     arguments: [
       txb.object(FoCManagerCap),
       txb.object(MovescriptionDeployRecord),

@@ -4,7 +4,6 @@ module fox_game::barn {
     use sui::table::{Self, Table};
     use sui::object_table::{Self, ObjectTable};
     use sui::event::emit;
-    use sui::coin::TreasuryCap;
     use sui::dynamic_field as dof;
     use sui::clock::{Self, Clock};
 
@@ -14,7 +13,9 @@ module fox_game::barn {
 
     use fox_game::token::{Self, FoxOrChicken, FoCRegistry, alpha_for_fox, alpha_for_fox_from_id};
     use fox_game::random;
-    use fox_game::egg::{Self, EGG};
+    use fox_game::egg;
+
+    use smartinscription::movescription::TickRecordV2;
 
     friend fox_game::fox;
 
@@ -22,17 +23,14 @@ module fox_game::barn {
     const MAX_ALPHA: u8 = 8;
     // sheep earn 10 $EGG per day
     // FIXME
-    const DAILY_EGG_RATE: u64 = 20 * 1000000000;
+    const DAILY_EGG_RATE: u64 = 10000;
     // chicken must have 2 days worth of $EGG to unstake or else it's too cold
-    // FIXME
-    // const MINIMUM_TO_EXIT: u64 = 2 * 86400;
-    // TEST
-    const MINIMUM_TO_EXIT: u64 = 86400;
-    const ONE_DAY_IN_SECOND: u64 = 86400;
+    const MINIMUM_TO_EXIT: u64 = 2 * 86400000;
+    const ONE_DAY_IN_SECOND: u64 = 86400000;
     // foxes take a 20% tax on all $EGG claimed
     const EGG_CLAIM_TAX_PERCENTAGE: u64 = 20;
-    // there will only ever be (roughly) 1.4 million $EGG earned through staking
-    const MAXIMUM_GLOBAL_EGG: u64 = 1400000 * 1000000000;
+    // there will only ever be (roughly) 5 billion $EGG earned through staking
+    const MAXIMUM_GLOBAL_EGG: u64 = 5000000000;
 
     //
     // Errors
@@ -185,7 +183,7 @@ module fox_game::barn {
         reg: &mut BarnRegistry,
         barn: &mut Barn,
         pack: &mut Pack,
-        treasury_cap: &mut TreasuryCap<EGG>,
+        egg_tick_record: &mut TickRecordV2,
         clock: &Clock,
         tokens: vector<ID>,
         unstake: bool,
@@ -218,7 +216,7 @@ module fox_game::barn {
         };
         vec::destroy_empty(tokens);
         if (owed == 0) { return focs };
-        egg::mint(treasury_cap, owed, sender(ctx), ctx);
+        egg::mint_egg_ins(egg_tick_record, owed, sender(ctx), ctx);
         focs
     }
 

@@ -14,7 +14,7 @@ const client = new SuiClient({
 
 const MovescriptionPackageId = env.MovescriptionPackageId;
 const MovescriptionTicketRecordV2Id = env.MovescriptionTICKTicketRecordV2Id;
-const inscription_id = '0x5d84c32e1e0b9946e12c9278401a9b5f102bb8381d9d75c55068f04fae52fdd6';
+const inscription_id = '0x15c5b3a81fd651df44f4d1b3020ee0ec7571c6ec60793beb93809d69da1e2e51';
 
 async function main() {
   const txb = new TransactionBlock();
@@ -24,9 +24,9 @@ async function main() {
     arguments: [txb.object(inscription_id), txb.pure(10001)],
   });
 
-  const tick = 'FOX'; // 3gvxe4CkMVAhXngGuGWRpX29W4i88XSBH1orhz6aJzsG
-  // const tick = 'SHEEP'; // GzL985zVNoN3m8B3PXxCgwdpUyV5ui6kxQU7xws8hgM8
-  // const tick = 'WOOL'; // 2xsqdTY2HgkDY2PyBTU8kBNyx6nc33CohS2dBPQ6axJt
+  // const tick = 'WOLFi'; // 5dKd4DFME3qqMdft6vSM16Wmyj1vMTVxzCgKeGT416ou
+  // const tick = 'SHEEPi';
+  const tick = 'WOOLi'; // D2DYThAq9qLGH8WEstXmR7Tu8VujoGmLR4Yne7P2Ce2u
 
   txb.moveCall({
     target: `${MovescriptionPackageId}::tick_factory::mint`,

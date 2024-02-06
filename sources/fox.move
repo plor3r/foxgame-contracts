@@ -5,7 +5,6 @@ module fox_game::fox {
     use std::vector;
 
     use sui::clock::{Self, Clock};
-    use sui::coin::TreasuryCap;
     use sui::object::{Self, ID, UID};
     use sui::tx_context::{TxContext, sender};
     use sui::transfer::{public_share_object, public_transfer};
@@ -17,7 +16,7 @@ module fox_game::fox {
     use fox_game::config;
     use fox_game::token::{Self, FoCRegistry, FoxOrChicken, FoCManagerCap};
     use fox_game::barn::{Self, Pack, Barn, BarnRegistry};
-    use fox_game::egg::EGG;
+    use fox_game::egg::deploy_egg_ins;
     use fox_game::utf8_utils::to_vector;
 
     use smartinscription::movescription::{Self, Movescription, TickRecordV2, DeployRecord};
@@ -196,11 +195,23 @@ module fox_game::fox {
         public_share_object(tick_record);
     }
 
+    #[lint_allow(share_owned)]
+    public entry fun deploy_eggs(
+        _: &FoCManagerCap,
+        deploy_record: &mut DeployRecord,
+        tick_tick_record: &mut TickRecordV2,
+        egg_tick_name: Movescription,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        deploy_egg_ins(deploy_record, tick_tick_record, egg_tick_name, clock, ctx);
+    }
+
     // mint a fox or chicken
     #[lint_allow(self_transfer)]
     public entry fun mint(
         global: &mut Global,
-        tick_record: &mut TickRecordV2,
+        fox_tick_record: &mut TickRecordV2,
         amount: u64,
         stake: bool,
         paid_move: Movescription,
@@ -258,7 +269,7 @@ module fox_game::fox {
 
             let move_to_lock = movescription::do_split(&mut paid_move, config::mint_price(), ctx);
             let the_token = token::create_foc(&mut global.foc_registry, ctx);
-            let foc_ins = mint_ins_with_token(tick_record, &the_token, move_to_lock, ctx);
+            let foc_ins = mint_ins_with_token(fox_tick_record, &the_token, move_to_lock, ctx);
 
             if (!stake) {
                 add_token_to_escrow(global, object::id(&foc_ins), the_token);
@@ -276,7 +287,7 @@ module fox_game::fox {
             recipient = select_recipient(&mut global.pack, minter, seed);
         };
         let the_token = token::create_foc(&mut global.foc_registry, ctx);
-        let foc_ins = mint_ins_with_token(tick_record, &the_token, paid_move, ctx);
+        let foc_ins = mint_ins_with_token(fox_tick_record, &the_token, paid_move, ctx);
         if (!stake) {
             add_token_to_escrow(global, object::id(&foc_ins), the_token);
             public_transfer(foc_ins, recipient);
@@ -319,7 +330,7 @@ module fox_game::fox {
 
     public entry fun claim_many_from_barn_and_pack(
         global: &mut Global,
-        egg_treasury_cap: &mut TreasuryCap<EGG>,
+        egg_tick_record: &mut TickRecordV2,
         tokens: vector<ID>, // token ID
         unstake: bool,
         clock: &Clock,
@@ -331,7 +342,7 @@ module fox_game::fox {
             &mut global.barn_registry,
             &mut global.barn,
             &mut global.pack,
-            egg_treasury_cap,
+            egg_tick_record,
             clock,
             tokens,
             unstake,

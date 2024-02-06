@@ -14,7 +14,6 @@ const client = new SuiClient({
 
 const FoxGamePackageId = env.FoxGamePackageId;
 const FoxGameGlobal = env.FoxGameGlobal;
-const EggTreasuryCap = env.EggTreasuryCap;
 
 const foc_id = "0xda5d2636a8795b977766ebe8459eb2a04ca951addf94d2a183daacc2876f0175";
 

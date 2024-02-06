@@ -1,38 +1,58 @@
 module fox_game::egg {
     use std::option;
-    use sui::coin::{Self, Coin, TreasuryCap};
     use sui::transfer;
     use sui::tx_context::TxContext;
+    use sui::balance;
+    use sui::sui::SUI;
+    use sui::clock::Clock;
+
+    use fox_game::config;
+
+    use smartinscription::tick_factory;
+    use smartinscription::movescription::{Self, Movescription, TickRecordV2, DeployRecord};
 
     friend fox_game::fox;
     friend fox_game::barn;
 
-    struct EGG has drop {}
+    struct WITNESS has drop {}
 
     #[lint_allow(share_owned)]
-    fun init(witness: EGG, ctx: &mut TxContext) {
-        let (treasury_cap, metadata) = coin::create_currency<EGG>(
-            witness,
-            9,
-            b"EGG",
-            b"Fox Game Egg",
-            b"Fox game egg coin",
-            option::none(),
+    public(friend) fun deploy_egg_ins(
+        deploy_record: &mut DeployRecord,
+        tick_tick_record: &mut TickRecordV2,
+        tick_name: Movescription,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        let total_supply = config::max_eggs();
+        let tick_record = tick_factory::do_deploy(
+            deploy_record,
+            tick_tick_record,
+            tick_name,
+            total_supply,
+            true,
+            WITNESS {},
+            clock,
             ctx
         );
-        transfer::public_freeze_object(metadata);
-        transfer::public_share_object(treasury_cap);
+        // movescription::tick_record_add_df(&mut tick_record, factory, WITNESS{});
+        transfer::public_share_object(tick_record);
     }
 
-    /// Manager can mint new coins
-    public(friend) fun mint(
-        treasury_cap: &mut TreasuryCap<EGG>, amount: u64, recipient: address, ctx: &mut TxContext
+    public(friend) fun mint_egg_ins(
+        tick_record: &mut TickRecordV2,
+        amount: u64,
+        recipient: address,
+        ctx: &mut TxContext
     ) {
-        coin::mint_and_transfer(treasury_cap, amount, recipient, ctx)
-    }
-
-    /// Manager can burn coins
-    public(friend) fun burn(treasury_cap: &mut TreasuryCap<EGG>, coin: Coin<EGG>) {
-        coin::burn(treasury_cap, coin);
+        let ins = movescription::do_mint_with_witness(
+            tick_record,
+            balance::zero<SUI>(),
+            amount,
+            option::none(),
+            WITNESS {},
+            ctx
+        );
+        transfer::public_transfer(ins, recipient);
     }
 }

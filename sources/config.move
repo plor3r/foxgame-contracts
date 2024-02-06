@@ -25,4 +25,8 @@ module fox_game::config {
     public fun is_enabled(): bool {
         true
     }
+
+    public fun max_eggs(): u64 {
+        14000000
+    }
 }
