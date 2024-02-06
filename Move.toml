@@ -2,7 +2,7 @@
 name = "fox_game"
 authors = ["qiwihui"]
 version = "0.0.1"
-published-at = "0x266d8fbcfc83774c3df303d61f176ece3ed0f3729fcd9e61567a51008dac6050"
+published-at = "0x095a5211ab488200cd8e88e83657959088f1c2153155b83404fba95e4532caec"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }

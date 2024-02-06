@@ -438,7 +438,7 @@ module fox_game::fox {
     }
 
     public fun mint_cost(token_index: u64): u64 {
-        if (token_index <= config::paid_tokens()) {
+        if (token_index <= config::max_tokens() * 1 / 5) {
             return config::mint_price()
         } else if (token_index <= config::max_tokens() * 2 / 5) {
             return 110 * config::mint_price() / 100
